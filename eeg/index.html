@@ -180,6 +180,33 @@ table.ledger{border-collapse:collapse;font-family:var(--mono);font-size:12.5px;m
 .cert p{margin:6px auto;max-width:34em}
 .cert .big{font-family:var(--display);font-size:64px;color:var(--red);line-height:1}
 .stamp{position:absolute;right:18px;bottom:14px;width:118px;height:118px;transform:rotate(-13deg);opacity:.82}
+/* project room */
+.tickets{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 18px}
+.route{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:0;border:1.5px solid var(--ink);background:var(--card);box-shadow:5px 5px 0 rgba(35,31,24,.16)}
+.stop{display:block;padding:10px 12px 12px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);text-decoration:none;color:var(--ink2);min-height:118px;opacity:.42}
+.stop b{font-family:var(--display);font-weight:400;font-size:30px;line-height:1;display:block;color:var(--ink2)}
+.stop i{font-family:var(--mono);font-style:normal;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;display:block;margin:2px 0 6px}
+.stop span{font-size:14px;line-height:1.38;display:block}
+.stop.lit{opacity:1;color:var(--ink);background:#fffdf4}
+.stop.lit b{color:var(--red)}
+.stop.lit:hover{background:#fff}
+.order{margin-top:22px;border:1.5px solid var(--ink);background:#fffdf4;box-shadow:5px 5px 0 rgba(35,31,24,.16)}
+.order .oh{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 16px;padding:8px 14px;border-bottom:3px double var(--ink)}
+.order .oh b{font-family:var(--display);font-weight:400;font-size:26px;line-height:1.1}
+.order dl{margin:0;display:grid;grid-template-columns:130px minmax(0,1fr)}
+.order dt{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);padding:10px 12px;border-bottom:1px solid var(--rule);border-right:1px solid var(--rule)}
+.order dd{margin:0;padding:8px 14px;border-bottom:1px solid var(--rule);font-size:15px;line-height:1.45;min-width:0}
+.order dd ol{margin:0;padding-left:20px}
+.order dd a{font-family:var(--mono);font-size:13px;display:inline-block;margin:0 14px 2px 0}
+.desk{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:22px;margin-top:10px}
+.pap{background:#fff;border:1px solid var(--ink);padding:18px 20px 16px;box-shadow:3px 4px 0 rgba(35,31,24,.14);position:relative}
+.pap:nth-child(1){transform:rotate(-.5deg)}
+.pap:nth-child(2){transform:rotate(.4deg)}
+.pap h4{font-family:var(--display);font-weight:400;font-size:23px;line-height:1.15;margin:4px 0 8px;text-wrap:balance}
+.pap p{margin:0 0 9px;font-size:15px;line-height:1.5}
+.pap .why{border-top:1px solid var(--rule);padding-top:8px;font-style:italic}
+.pap a{font-family:var(--mono);font-size:13px;margin-right:14px}
+@media (max-width:600px){.order dl{grid-template-columns:minmax(0,1fr)}.order dt{border-right:0;border-bottom:0;padding-bottom:0}}
 footer{margin-top:60px;border-top:3px double var(--ink);padding-top:14px;font-family:var(--mono);font-size:12px;color:var(--ink2);line-height:1.5}
 
 @media (max-width:900px){
@@ -197,14 +224,14 @@ footer{margin-top:60px;border-top:3px double var(--ink);padding-top:14px;font-fa
   .shead{gap:4px 14px}
 }
 </style>
-<meta name="description" content="An interactive EEG laboratory in ten stations for machine-learning people: from the neural source of the signal to machine learning on it.">
+<meta name="description" content="An interactive EEG laboratory for machine-learning people: from the neural source of the signal to machine learning on it.">
 </head>
 <body>
 
 <div class="plate"><div class="in">
   <span class="who">BERGER LAB · SUITE 3</span>
   <nav class="tabs" aria-label="Stations">
-    <a href="#s1">I Admission</a><a href="#s2">II Source</a><a href="#s3">III Skull</a><a href="#s4">IV Recording room</a><a href="#s5">V Rhythms</a><a href="#s6">VI Artifact ward</a><a href="#s7">VII Cleaning bench</a><a href="#s8">VIII Averager</a><a href="#s9">IX Decoding office</a><a href="#s10">X Examination</a>
+    <a href="#s1">I Admission</a><a href="#s2">II Source</a><a href="#s3">III Skull</a><a href="#s4">IV Recording room</a><a href="#s5">V Rhythms</a><a href="#s6">VI Artifact ward</a><a href="#s7">VII Cleaning bench</a><a href="#s8">VIII Averager</a><a href="#s9">IX Decoding office</a><a href="#s10">X Examination</a><a href="#s11">XI Project room</a>
   </nav>
 </div></div>
 
@@ -557,6 +584,33 @@ footer{margin-top:60px;border-top:3px double var(--ink);padding-top:14px;font-fa
       <path id="arc" d="M18 60 A42 42 0 0 1 102 60" fill="none"/><text font-family="Courier Prime,monospace" font-size="10" letter-spacing="2" fill="#ad3526"><textPath href="#arc" startOffset="6%">PASSED · SUITE No. 3</textPath></text>
       <text x="60" y="72" text-anchor="middle" font-family="Libre Caslon Display,serif" font-size="30" fill="#ad3526">EEG</text><text x="60" y="90" text-anchor="middle" font-family="Courier Prime,monospace" font-size="8" letter-spacing="2" fill="#ad3526">READER</text></svg>
   </div>
+</div></section>
+
+<!-- ============ XI ============ -->
+<section class="station" id="s11"><div class="in">
+  <div class="shead"><span class="num">XI</span><span class="caps">Station eleven · The project room</span><h2>Put the stations to work</h2></div>
+  <div class="cols" style="margin-bottom:22px">
+    <div class="txt"><p>Ten stations taught you the parts. A project is those parts in a particular order. Pick a work order below. The board shows which stations it draws on and what each one contributes, and the order sheet names the data, the recipe, the trap, and the first page to open. Lit stations are links back.</p></div>
+    <div class="txt"><p>All four use public data and open tools, and none needs an EEG headset. Do them in order: the first three give you the baselines, and the fourth only means something once you have a baseline to beat.</p></div>
+  </div>
+  <div class="tickets" id="tickets"></div>
+  <div class="route" id="route"></div>
+  <div class="order" id="order"></div>
+
+  <p class="caps" style="margin:44px 0 0;color:var(--ink2)">On the desk · two recent papers, and why to read them</p>
+  <div class="desk">
+    <div class="pap"><span class="caps" style="color:var(--red)">NeurIPS 2025 · main track</span>
+      <h4>REVE: A Foundation Model for EEG, Adapting to Any Setup with Large-Scale Pretraining on 25,000 Subjects</h4>
+      <p>A masked-autoencoder model pretrained on more than 60,000 hours of EEG from 92 datasets. Its 4D positional encoding lets it take recordings of any length and any electrode layout. The authors report state-of-the-art results on ten downstream tasks, among them motor imagery, seizure detection and sleep staging, and release code, weights and tutorials.</p>
+      <p class="why">Why read it: station IV showed that every dataset uses a different cap. This is the current answer to how one model can swallow all of them, and it is the model to try in work order 11-D.</p>
+      <a href="https://arxiv.org/abs/2510.21585">arXiv 2510.21585</a><a href="https://brain-bzh.github.io/reve/">project page</a></div>
+    <div class="pap"><span class="caps" style="color:var(--red)">arXiv preprint · 2026 · Liu et al.</span>
+      <h4>EEG-FM-Compass: Progress, Benchmarking, and Future Directions for EEG Foundation Models</h4>
+      <p>A review of 55 EEG foundation models, then a benchmark of 12 open-source ones against specialist baselines on 13 datasets and nine BCI paradigms. Its abstract reports three findings: a frozen model with a linear probe is frequently not enough, specialist models trained from scratch stay competitive on many tasks, and larger models do not necessarily generalise better.</p>
+      <p class="why">Why read it: it is the sceptical companion to REVE, and station IX's warning in published form. Read the two together before you believe any leaderboard.</p>
+      <a href="https://arxiv.org/abs/2601.17883">arXiv 2601.17883</a></div>
+  </div>
+  <p class="cap" style="max-width:60em">Summaries follow each paper's abstract. The second is a preprint that had not been peer reviewed when this station was written, in November 2026. Check for newer versions.</p>
   <footer>Colophon — every trace, head and reading in this laboratory is simulated for teaching; nothing here is a real recording or a real subject. Band edges, impedance limits and resolutions are the field's working conventions and vary a little between sources. The Berger Laboratory is fictional. Hans Berger and his 1924 recording are not.</footer>
 </div></section>
 
@@ -1099,6 +1153,46 @@ const QUIZ=[
     $('certText').textContent=pass?'This certifies that the bearer has walked all ten stations, can tell a blink from a brain wave, and will not trust a shuffled split. Admitted to the recording room without supervision.':ok>=6?'A sound first reading. Revisit the stations named under the questions you missed, then sit the examination again.':'The laboratory recommends a second walk through the stations before the next sitting. The apparatus will wait.';
     $('certDate').textContent='Recording Suite No. 3 · '+new Date().toLocaleDateString(undefined,{day:'numeric',month:'long',year:'numeric'});
     $('stampSvg').hidden=!pass;c.scrollIntoView({behavior:reduced?'auto':'smooth',block:'center'});}
+})();
+
+/* ================= XI project room ================= */
+(function(){
+  const ROM=['I','II','III','IV','V','VI','VII','VIII','IX','X'],STN=['Admission','The source','Through the skull','Recording room','Rhythms','Artifact ward','Cleaning bench','The averager','Decoding office','Examination'];
+  const PROJ=[
+   {no:'11-A',t:'Motor-imagery BCI',goal:'Tell imagined left-hand movement from imagined right-hand movement, from the EEG alone.',
+    data:'BCI Competition IV-2a: 9 people, 22 channels, four imagined movements. Or PhysioNet EEGMMI: 109 people, 64 channels.',
+    recipe:['Band-pass 8–30 Hz and cut epochs after each cue.','Fit CSP, then LDA. This is your baseline.','Train EEGNet in Braindecode on the same epochs.','Score both with MOABB, across sessions and then across subjects.'],
+    judge:'Accuracy against chance, per subject. Expect a wide spread between people; some sit near chance whatever you do.',
+    trap:'People twitch when they imagine moving. Check that the model is not reading muscle.',
+    links:[['MNE: CSP on motor imagery','https://mne.tools/stable/auto_examples/decoding/decoding_csp_eeg.html'],['MOABB examples','https://moabb.neurotechx.com/docs/auto_examples/index.html'],['PhysioNet EEGMMI','https://physionet.org/content/eegmmidb/1.0.0/']],
+    use:{2:'Mu is a synchrony story. Imagining movement desynchronises motor cortex and the rhythm shrinks.',3:'The hand areas are close together and the skull smears them. C3 and C4 will share signal.',4:'C3 and C4 sit over the hand areas. Know where they are before you read a CSP pattern.',5:'The feature is a drop in 8–30 Hz power: mu and beta.',6:'Real twitches make muscle noise. A model can learn the twitch and not the imagery.',7:'Band-pass 8–30 Hz before anything else.',8:'CSP first, then covariance and Riemannian features.',9:'Split by session or subject. Compare EEGNet against CSP + LDA.'}},
+   {no:'11-B',t:'Sleep staging',goal:'Label every 30 seconds of a night as Wake, N1, N2, N3 or REM.',
+    data:'Sleep-EDF Expanded on PhysioNet: whole-night recordings with two EEG channels, Fpz-Cz and Pz-Oz, scored by experts.',
+    recipe:['Cut the night into 30-second epochs, the unit sleep scorers use.','Compute band power per epoch with Welch’s method.','Train a random forest on those features. This is your baseline.','Train Braindecode’s sleep-staging network on the raw epochs.'],
+    judge:'Balanced accuracy or Cohen’s kappa, on people the model has never seen.',
+    trap:'N2 fills about half the night and N1 is rare. Plain accuracy flatters a model that ignores N1.',
+    links:[['MNE: sleep stage tutorial','https://mne.tools/stable/auto_tutorials/clinical/60_sleep.html'],['Braindecode: sleep staging','https://braindecode.org/stable/auto_examples/applied_examples/plot_sleep_staging_chambon2018.html'],['Sleep-EDF data','https://physionet.org/content/sleep-edfx/1.0.0/']],
+    use:{4:'Two channels only. Read their names: each is a pair, electrode minus reference.',5:'The stages are defined by rhythms. Alpha when awake, theta in light sleep, delta in N3.',6:'Here eye movements are signal. Rapid ones mark REM sleep.',7:'Band-pass, then cut into 30-second epochs.',8:'Band power per epoch is the classic feature set.',9:'Split by person, never by epoch. Neighbouring epochs are near-copies.'}},
+   {no:'11-C',t:'P300 decoding',goal:'First reproduce a textbook ERP by averaging. Then decode, trial by trial, whether the person saw the rare stimulus.',
+    data:'ERP CORE: 40 people, six standard tasks, seven classic components including the P3, N170 and ERN.',
+    recipe:['High-pass at 0.1 Hz, remove blinks with ICA, epoch from −200 to 800 ms.','Average rare and frequent trials separately and find the P3 at Pz.','Decode single trials: xDAWN filters, covariance, tangent space, logistic regression.','Compare with shrinkage LDA on downsampled epochs.'],
+    judge:'Area under the ROC curve, tested on held-out people.',
+    trap:'Targets are rare by design. A model that always says “frequent” scores high accuracy and is useless.',
+    links:[['ERP CORE','https://erpinfo.org/erp-core'],['pyRiemann examples','https://pyriemann.readthedocs.io/en/latest/auto_examples/index.html']],
+    use:{2:'An ERP is the same synaptic sum, locked in time to an event.',4:'The P3 is largest at Pz, and the reference you choose changes its shape.',6:'People blink after stimuli. Blinks locked to the event survive averaging.',7:'High-pass at 0.1 Hz and no higher, or you bend the wave you are measuring.',8:'Average to see the component, then decode single trials.',9:'Report AUC and split by subject.'}},
+   {no:'11-D',t:'Fine-tune a foundation model',goal:'Take a model pretrained on thousands of hours of EEG and find out whether it beats your own baselines from orders A to C.',
+    data:'Pretrained weights for REVE or LaBraM. For scale, the 2025 EEG Foundation Challenge data: over 3,000 people, 128 channels.',
+    recipe:['Pick one task from orders A to C and keep its honest split.','Freeze the pretrained model and train a linear layer on top.','Then fine-tune the whole model.','Repeat with a tenth of the labels. This is where pretraining should help most.'],
+    judge:'The same metric and split as your baseline, with the baseline printed beside it.',
+    trap:'A weak baseline makes any large model look good. Recent benchmarks find small models from scratch still competitive.',
+    links:[['REVE code and weights','https://brain-bzh.github.io/reve/'],['LaBraM','https://github.com/935963004/LaBraM'],['EEG Foundation Challenge','https://eeg2025.github.io/'],['Braindecode','https://github.com/braindecode/braindecode']],
+    use:{3:'Every recording mixes sources through a different head. That is what the model must generalise over.',4:'Datasets use different caps: 19, 64, 128 channels. The model needs a way to accept any layout.',6:'Thousands of hours of EEG are also thousands of hours of blinks and muscle.',8:'The small-model features you are trying to beat.',9:'Everything in this station: honest splits, strong baselines, new subjects.'}}];
+  const tk=$('tickets'),rt=$('route'),od=$('order');
+  function show(i){const P=PROJ[i];tk.querySelectorAll('.btn').forEach((b,k)=>b.classList.toggle('on',k===i));
+    rt.innerHTML=ROM.map((r,k)=>{const u=P.use[k+1];return u?'<a class="stop lit" href="#s'+(k+1)+'"><b>'+r+'</b><i>'+STN[k]+'</i><span>'+u+'</span></a>':'<div class="stop"><b>'+r+'</b><i>'+STN[k]+'</i><span>Not the heart of this one.</span></div>';}).join('');
+    od.innerHTML='<div class="oh"><b>'+P.t+'</b><span class="caps">Work order '+P.no+' · Berger Laboratory</span></div><dl><dt>Goal</dt><dd>'+P.goal+'</dd><dt>Data</dt><dd>'+P.data+'</dd><dt>Recipe</dt><dd><ol>'+P.recipe.map(s=>'<li>'+s+'</li>').join('')+'</ol></dd><dt>Judge it by</dt><dd>'+P.judge+'</dd><dt>The trap</dt><dd>'+P.trap+'</dd><dt>Open first</dt><dd>'+P.links.map(l=>'<a href="'+l[1]+'" target="_blank" rel="noopener">'+l[0]+' ↗</a>').join('')+'</dd></dl>';}
+  PROJ.forEach((P,i)=>{const b=document.createElement('button');b.className='btn';b.textContent=P.no+' · '+P.t;b.addEventListener('click',()=>show(i));tk.appendChild(b);});
+  show(0);
 })();
 
 /* ================= tabs + resize + go ================= */
