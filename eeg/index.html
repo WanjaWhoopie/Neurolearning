@@ -1,0 +1,1117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cortex to Classifier</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Libre+Caslon+Display&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* World: a mid-century EEG laboratory. The page is its chart paper; every station is a piece of apparatus on the bench.
+   Layout: full-width stations, each a two-column bench (typed notes beside an instrument), ruled like a lab ledger. */
+:root{
+  --paper:#efe9da; --card:#f8f4e8; --ink:#231f18; --ink2:#615846; --rule:#c9bea4;
+  --grid:#edd3c6; --gridM:#dcae9c; --red:#ad3526; --navy:#1b3456; --brass:#a17f2a; --green:#3b6849;
+  --serif:"Libre Caslon Text",Georgia,"Times New Roman",serif;
+  --display:"Libre Caslon Display","Libre Caslon Text",Georgia,serif;
+  --mono:"Courier Prime","Courier New",Courier,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;
+  background:var(--paper); color:var(--ink); font-family:var(--serif); font-size:16.5px; line-height:1.62;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .3 0 0 0 0 .2 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");
+  padding-block:0 60px;
+}
+.in{max-width:1200px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+a{color:var(--navy)}
+.mono{font-family:var(--mono)}
+.caps{font-family:var(--mono);font-size:11.5px;letter-spacing:.16em;text-transform:uppercase}
+
+/* ---------- nameplate + station tabs ---------- */
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--ink)}
+.plate{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--ink);color:var(--paper);border-bottom:3px double var(--brass)}
+.plate .in{display:flex;align-items:center;gap:18px;padding-block:7px}
+.plate .who{font-family:var(--mono);font-size:11px;letter-spacing:.2em;white-space:nowrap;color:#d9c68f}
+.tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0}
+.tabs::-webkit-scrollbar{display:none}
+.tabs a{flex:0 0 auto;font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;color:#cfc6b0;text-decoration:none;padding:4px 9px;border:1px solid transparent;border-radius:3px;white-space:nowrap}
+.tabs a:hover{color:#fff}
+.tabs a.here{background:var(--paper);color:var(--ink);border-color:var(--paper)}
+.tabs a:focus-visible,button:focus-visible,[tabindex]:focus-visible,input:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+
+/* ---------- masthead ---------- */
+.mast{padding:38px 0 26px}
+.mast .top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 30px;border-bottom:1px solid var(--ink);padding-bottom:8px}
+.mast h1{font-family:var(--display);font-weight:400;font-size:clamp(44px,9.2vw,128px);line-height:.94;letter-spacing:-.015em;margin:22px 0 6px}
+.mast h1 i{font-family:var(--serif);font-style:italic;color:var(--red);font-size:.62em;letter-spacing:0}
+.mast .sub{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:20px 48px;align-items:end;margin-top:14px}
+.mast .sub p{margin:0;font-size:18.5px;line-height:1.5;font-style:italic}
+.mast .facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--ink)}
+.mast .facts div{padding:8px 10px 0 0;border-right:1px solid var(--rule)}
+.mast .facts div:last-child{border-right:0}
+.mast .facts b{display:block;font-family:var(--display);font-size:30px;font-weight:400;line-height:1.1}
+.recorder{margin-top:26px;border:1.5px solid var(--ink);background:var(--card);box-shadow:5px 5px 0 rgba(35,31,24,.16)}
+.recorder .bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1.5px solid var(--ink);background:var(--ink);color:var(--paper)}
+.recorder canvas{display:block;width:100%}
+.recorder .bar .caps{color:#d9c68f}
+
+/* ---------- controls ---------- */
+.btn{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);background:var(--card);
+  border:1.5px solid var(--ink);padding:7px 12px;cursor:pointer;box-shadow:2px 2px 0 var(--ink);border-radius:2px;line-height:1.2}
+.btn:hover{background:#fff}
+.btn:active{transform:translate(2px,2px);box-shadow:none}
+.btn.on{background:var(--ink);color:var(--paper)}
+.btn.red{background:var(--red);color:#fff;border-color:var(--ink)}
+.btn.sm{padding:4px 8px;font-size:11px;box-shadow:1px 1px 0 var(--ink)}
+.bar .btn{border-color:var(--paper);box-shadow:none;background:transparent;color:var(--paper)}
+.bar .btn.on{background:var(--paper);color:var(--ink)}
+.row{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
+.sw{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;letter-spacing:.06em;cursor:pointer;user-select:none;padding:5px 9px 5px 6px;border:1.5px solid var(--ink);background:var(--card);border-radius:2px}
+.sw input{appearance:none;-webkit-appearance:none;width:30px;height:16px;border:1.5px solid var(--ink);border-radius:9px;background:var(--paper);position:relative;margin:0;cursor:pointer;flex:0 0 auto}
+.sw input::after{content:"";position:absolute;left:1px;top:1px;width:11px;height:11px;border-radius:50%;background:var(--ink);transition:left .15s}
+.sw input:checked{background:var(--red)}
+.sw input:checked::after{left:15px;background:#fff}
+input[type=range]{accent-color:var(--red);width:150px;max-width:100%}
+.read{font-family:var(--mono);font-size:13px;color:var(--red);font-weight:700}
+
+/* ---------- stations ---------- */
+.station{padding:54px 0 10px;border-top:1.5px solid var(--ink);margin-top:46px;position:relative}
+.station::before{content:"";position:absolute;left:0;right:0;top:3px;border-top:1px solid var(--ink)}
+.shead{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 26px;align-items:end;margin-bottom:26px}
+.shead .num{font-family:var(--display);font-size:clamp(64px,10vw,118px);line-height:.8;color:var(--red);grid-row:span 2}
+.shead .caps{color:var(--ink2)}
+.shead h2{font-family:var(--display);font-weight:400;font-size:clamp(30px,4.6vw,54px);line-height:1.02;margin:0;text-wrap:balance}
+.cols{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:26px 46px;align-items:start}
+.cols.flip{grid-template-columns:minmax(0,7fr) minmax(0,5fr)}
+.txt p{margin:0 0 14px}
+.txt ul{margin:0 0 14px;padding-left:20px}
+.txt li{margin-bottom:7px}
+.txt h3{font-family:var(--serif);font-style:italic;font-weight:400;font-size:22px;margin:22px 0 8px}
+.dropcap::first-letter{font-family:var(--display);font-size:3.5em;float:left;line-height:.8;padding:6px 8px 0 0;color:var(--red)}
+code{font-family:var(--mono);font-size:.9em;background:rgba(35,31,24,.08);padding:1px 5px;border-radius:2px}
+.nb{display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;border-top:3px double var(--ink);border-bottom:3px double var(--ink);padding:12px 0;margin:20px 0}
+.nb span{font-family:var(--mono);font-weight:700;color:var(--red);font-size:13px;letter-spacing:.12em;padding-top:4px}
+.nb p{margin:0;font-style:italic;font-size:18.5px;line-height:1.42}
+
+/* apparatus */
+.app{background:var(--card);border:1.5px solid var(--ink);box-shadow:5px 5px 0 rgba(35,31,24,.16);position:relative;min-width:0}
+.app .lab{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 16px;padding:6px 12px;border-bottom:1.5px solid var(--ink)}
+.app .lab b{font-family:var(--mono);font-size:11.5px;letter-spacing:.16em;text-transform:uppercase}
+.app .lab span{font-family:var(--mono);font-size:11.5px;color:var(--ink2)}
+.app canvas{display:block;width:100%;touch-action:pan-y}
+.app .ctl{padding:10px 12px;border-top:1.5px solid var(--ink);display:flex;flex-wrap:wrap;gap:9px 12px;align-items:center}
+.app .ctl label{font-family:var(--mono);font-size:12px;display:flex;align-items:center;gap:8px}
+.cap{font-family:var(--mono);font-size:12px;color:var(--ink2);margin:9px 0 0;line-height:1.45}
+.cap b{color:var(--red)}
+.slip{font-family:var(--mono);font-size:13px;line-height:1.5;padding:10px 12px;border-top:1.5px dashed var(--ink);background:#fffdf4;min-height:3.2em}
+.slip b{color:var(--red)}
+.note{font-family:var(--mono);font-size:13px;line-height:1.5;background:#fffbe8;border:1px solid var(--rule);padding:12px 14px;transform:rotate(-.6deg);box-shadow:2px 3px 0 rgba(35,31,24,.12);margin:18px 0;position:relative}
+.note::before{content:"";position:absolute;top:-9px;left:40%;width:70px;height:18px;background:rgba(201,180,120,.55);transform:rotate(-2deg)}
+
+/* ledger table */
+.tscroll{overflow-x:auto}
+table.ledger{border-collapse:collapse;font-family:var(--mono);font-size:12.5px;min-width:560px;width:100%}
+.ledger th,.ledger td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+.ledger th{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;border-bottom:1.5px solid var(--ink);color:var(--ink2);font-weight:400}
+.ledger tr.me td{background:rgba(173,53,38,.09);font-weight:700}
+
+/* 3D room */
+.room{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,4fr);gap:0}
+#headView{position:relative;min-height:340px;background:radial-gradient(ellipse at 50% 42%,#fffdf5 0%,#f1ead8 62%,#e2d8c0 100%);cursor:grab;touch-action:pan-y;overflow:hidden}
+#headView.drag{cursor:grabbing}
+#headView canvas{display:block}
+.hud{position:absolute;left:10px;top:8px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--ink2);pointer-events:none;text-transform:uppercase;line-height:1.5}
+.hud b{color:var(--red)}
+.zoom{position:absolute;right:10px;top:8px;display:flex;flex-direction:column;gap:5px}
+.side{border-left:1.5px solid var(--ink);display:flex;flex-direction:column;min-width:0}
+.side .blk{padding:11px 12px;border-bottom:1.5px solid var(--ink)}
+.side .blk:last-child{border-bottom:0;flex:1}
+.side h4{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;margin:0 0 7px;color:var(--ink2);font-weight:400}
+#eName{font-family:var(--display);font-size:46px;line-height:1;color:var(--red)}
+#eWhere{font-family:var(--mono);font-size:12px;margin:4px 0 6px}
+#eWhat{font-size:14.5px;line-height:1.45;margin:0}
+.lamps{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:5px}
+.lamp{font-family:var(--mono);font-size:10.5px;border:1px solid var(--ink);background:var(--card);padding:3px 4px;display:flex;align-items:center;gap:4px;cursor:pointer;color:var(--ink)}
+.lamp i{width:8px;height:8px;border-radius:50%;border:1px solid var(--ink);flex:0 0 auto}
+.lamp.sel{background:var(--ink);color:var(--paper)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-family:var(--mono);font-size:11px;margin-top:8px}
+.legend i{display:inline-block;width:10px;height:10px;border:1px solid var(--ink);margin-right:4px;vertical-align:-1px}
+
+/* knob */
+.knobwrap{display:grid;grid-template-columns:270px minmax(0,1fr);border-top:1.5px solid var(--ink)}
+.knobwrap>div:first-child{border-right:1.5px solid var(--ink);padding:8px;display:flex;align-items:center;justify-content:center}
+#knob{width:100%;max-width:280px;height:auto;cursor:pointer}
+#knob text{font-family:var(--mono);font-size:9px;letter-spacing:.08em;fill:var(--ink2);cursor:pointer}
+#knob text.act{fill:var(--red);font-weight:700}
+#knobDial{transition:transform .35s cubic-bezier(.3,1.5,.5,1);transform-origin:95px 96px}
+
+/* IC cards */
+.ics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1.5px solid var(--ink)}
+.ic{padding:10px;border-right:1.5px solid var(--ink);font-family:var(--mono);font-size:12px;line-height:1.4}
+.ic:last-child{border-right:0}
+.ic svg{width:64px;height:70px;float:right;margin-left:6px}
+.ic b{display:block;letter-spacing:.12em}
+.ic.rej{background:repeating-linear-gradient(-45deg,transparent 0 7px,rgba(173,53,38,.13) 7px 9px)}
+
+/* gauge */
+#gauge{width:100%;max-width:340px;display:block;margin:6px auto 0}
+#needle{transition:transform .9s cubic-bezier(.3,1.4,.5,1);transform-origin:170px 170px}
+
+/* cards + quiz */
+.kit{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:8px}
+.kit div{background:#fffdf4;border:1px solid var(--ink);padding:26px 14px 12px;font-size:14.5px;line-height:1.45;position:relative;background-image:linear-gradient(var(--grid) 1px,transparent 1px);background-size:100% 22px;background-position:0 30px}
+.kit div::before{content:"";position:absolute;left:0;right:0;top:19px;border-top:1.5px solid var(--red)}
+.kit b{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;position:absolute;top:3px;left:14px}
+.qgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:16px}
+.q{border:1.5px solid var(--ink);background:var(--card);padding:14px 16px}
+.q .qq{margin:0 0 10px;font-size:17px;line-height:1.35}
+.q .qq b{font-family:var(--mono);color:var(--red);margin-right:8px;font-size:13px;letter-spacing:.1em}
+.qopt{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;width:100%;text-align:left;font-family:var(--serif);font-size:15px;color:var(--ink);background:transparent;border:0;border-top:1px solid var(--rule);padding:7px 2px;cursor:pointer;line-height:1.35}
+.qopt::before{content:"";width:13px;height:13px;border:1.5px solid var(--ink);border-radius:50%;margin-top:3px}
+.qopt:hover{background:rgba(35,31,24,.05)}
+.qopt.right::before{background:var(--green);border-color:var(--green)}
+.qopt.wrong::before{background:var(--red);border-color:var(--red)}
+.qopt.right{color:var(--green);font-weight:700}
+.qopt.wrong{color:var(--red);text-decoration:line-through}
+.qexp{font-family:var(--mono);font-size:12px;color:var(--ink2);margin:8px 0 0;display:none;line-height:1.45}
+.q.done .qexp{display:block}
+.cert{margin:30px auto 0;max-width:720px;background:#fffdf4;border:1.5px solid var(--ink);outline:1px solid var(--ink);outline-offset:5px;padding:30px 28px;text-align:center;position:relative}
+.cert h3{font-family:var(--display);font-weight:400;font-size:clamp(28px,5vw,44px);margin:6px 0 4px}
+.cert p{margin:6px auto;max-width:34em}
+.cert .big{font-family:var(--display);font-size:64px;color:var(--red);line-height:1}
+.stamp{position:absolute;right:18px;bottom:14px;width:118px;height:118px;transform:rotate(-13deg);opacity:.82}
+footer{margin-top:60px;border-top:3px double var(--ink);padding-top:14px;font-family:var(--mono);font-size:12px;color:var(--ink2);line-height:1.5}
+
+@media (max-width:900px){
+  .cols,.cols.flip,.mast .sub{grid-template-columns:minmax(0,1fr)}
+  .room{grid-template-columns:minmax(0,1fr)}
+  .side{border-left:0;border-top:1.5px solid var(--ink)}
+  .mast .facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .mast .facts div:nth-child(2){border-right:0}
+  .knobwrap{grid-template-columns:minmax(0,1fr)}
+  .knobwrap>div:first-child{border-right:0;border-bottom:1.5px solid var(--ink)}
+  .ics{grid-template-columns:minmax(0,1fr)}
+  .ic{border-right:0;border-bottom:1.5px solid var(--ink)}
+  .ic:last-child{border-bottom:0}
+  .plate .who{display:none}
+  .shead{gap:4px 14px}
+}
+</style>
+<meta name="description" content="An interactive EEG laboratory in ten stations for machine-learning people: from the neural source of the signal to machine learning on it.">
+</head>
+<body>
+
+<div class="plate"><div class="in">
+  <span class="who">BERGER LAB · SUITE 3</span>
+  <nav class="tabs" aria-label="Stations">
+    <a href="#s1">I Admission</a><a href="#s2">II Source</a><a href="#s3">III Skull</a><a href="#s4">IV Recording room</a><a href="#s5">V Rhythms</a><a href="#s6">VI Artifact ward</a><a href="#s7">VII Cleaning bench</a><a href="#s8">VIII Averager</a><a href="#s9">IX Decoding office</a><a href="#s10">X Examination</a>
+  </nav>
+</div></div>
+
+<div class="in">
+<header class="mast">
+  <div class="top caps"><span>The Berger Laboratory of Electroencephalography</span><span>Recording Suite No. 3 · est. 1929</span><span>A course for machine-learning people, in ten stations</span></div>
+  <h1>Cortex <i>to</i> Classifier</h1>
+  <div class="sub">
+    <p>Walk the laboratory. Fire a synapse, drag a dipole under the skull, fit a cap on a head, turn the brain-state dial, clean a ruined recording, and train your suspicion of any model that scores too well.</p>
+    <div class="facts caps">
+      <div><b>10–100</b>microvolts at the scalp</div>
+      <div><b>1 ms</b>time resolution</div>
+      <div><b>2–5 cm</b>space resolution</div>
+      <div><b>19</b>sites, system 10–20</div>
+    </div>
+  </div>
+  <div class="recorder">
+    <div class="bar"><span class="caps">Polygraph · 4 pens · now recording subject 112</span>
+      <span class="row"><span class="caps">paper</span>
+        <button class="btn sm" data-sp="30">15 mm/s</button><button class="btn sm on" data-sp="60">30 mm/s</button><button class="btn sm" data-sp="120">60 mm/s</button>
+        <button class="btn sm" id="calBtn">Cal 50 µV</button></span></div>
+    <canvas id="heroC" height="250" aria-label="A four-pen chart recorder writing live simulated EEG"></canvas>
+  </div>
+  <p class="cap">FIG. 0 — The suite's chart recorder. Pen 1 sits at the forehead and catches every blink. Pen 3 sits over visual cortex and writes alpha. Press <b>CAL</b> the way a technician does before every session: a 50&nbsp;µV square pulse on all pens, so anyone reading the paper later knows the scale. All traces in this laboratory are simulated.</p>
+</header>
+</div>
+
+<!-- ============ I ============ -->
+<section class="station" id="s1"><div class="in">
+  <div class="shead"><span class="num">I</span><span class="caps">Station one · Admission desk</span><h2>Why EEG is where neuro AI starts</h2></div>
+  <div class="cols">
+    <div class="txt">
+      <p class="dropcap">In 1924 the psychiatrist Hans Berger put electrodes on his son's scalp and recorded the first human electroencephalogram. He saw a stately wave, about ten per second, that appeared when the eyes closed and vanished when they opened. He named it alpha. A century later the same measurement, voltage between points on the scalp, is still the only brain signal that is non-invasive, millisecond-fast, portable and cheap all at once.</p>
+      <p>For you, coming from machine learning: EEG is a multivariate time series. 8 to 256 channels, sampled 250 to 1000 times a second, with amplitudes of tens of microvolts, about a millionth of an AA battery. It runs epilepsy monitoring, sleep staging, anaesthesia depth and brain–computer interfaces today, and it is the data behind most public brain-decoding benchmarks.</p>
+      <div class="nb"><span>N.B.</span><p>EEG trades space for time. It knows <em>when</em> to the millisecond and <em>where</em> only to the centimetre. Everything in this laboratory follows from that trade.</p></div>
+    </div>
+    <div>
+      <div class="app"><div class="lab"><b>Ledger 1 · the family of brain recorders</b><span>EEG's row is marked</span></div>
+      <div class="tscroll"><table class="ledger">
+        <tr><th>Method</th><th>Measures</th><th>Time</th><th>Space</th><th>Portable</th><th>Cost</th></tr>
+        <tr class="me"><td>EEG</td><td>scalp voltage, synced synaptic currents</td><td>~1 ms</td><td>2–5 cm</td><td>yes</td><td>$</td></tr>
+        <tr><td>MEG</td><td>magnetic field of the same currents</td><td>~1 ms</td><td>~1 cm</td><td>no, shielded room</td><td>$$$$</td></tr>
+        <tr><td>fMRI</td><td>blood oxygenation</td><td>1–2 s</td><td>1–3 mm</td><td>no</td><td>$$$$</td></tr>
+        <tr><td>fNIRS</td><td>blood oxygenation, by light</td><td>seconds</td><td>1–3 cm</td><td>yes</td><td>$$</td></tr>
+        <tr><td>ECoG / iEEG</td><td>voltage on or in the brain</td><td>~1 ms</td><td>mm</td><td>implanted</td><td>surgery</td></tr>
+      </table></div></div>
+      <div class="note">Admission slip, subject 112 — "Relax, eyes closed, try not to clench your jaw." Three instructions, and each one exists because of something you will meet at stations V and VI.</div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ============ II ============ -->
+<section class="station" id="s2"><div class="in">
+  <div class="shead"><span class="num">II</span><span class="caps">Station two · The source</span><h2>What is actually making the voltage</h2></div>
+  <div class="cols">
+    <div class="txt">
+      <p>The usual guess, that EEG records neurons firing, is wrong in a way that matters. A spike lasts a millisecond and neighbours fire out of step, so their fields cancel long before the scalp. What EEG sees is slower.</p>
+      <ul>
+        <li><strong>Postsynaptic potentials.</strong> When a synapse releases transmitter onto a dendrite, the membrane voltage shifts for 10–100&nbsp;ms. Slow enough to overlap and add.</li>
+        <li><strong>Pyramidal neurons.</strong> Large cortical cells whose long apical dendrites all point the same way, at right angles to the surface, like trees in a plantation.</li>
+        <li><strong>Dipoles.</strong> An excitatory synapse near the top pulls positive ions in there (a sink) and current leaves near the cell body (a source). The cell becomes a tiny battery.</li>
+      </ul>
+      <p>One battery is hopeless. But the dendrites are parallel, so the batteries add. When some six square centimetres of cortex receive input at the same moment, the sum is finally large enough to measure through bone. EEG therefore measures <strong>synchrony</strong>, not effort. A region working hard out of step is invisible. A region idling in lockstep is loud.</p>
+      <div class="nb"><span>N.B.</span><p>EEG is the summed postsynaptic potentials of synchronised, parallel pyramidal neurons. Not spikes.</p></div>
+    </div>
+    <div>
+      <div class="app"><div class="lab"><b>Fig. 2a · one pyramidal neuron</b><span>press the key to release glutamate at the tuft</span></div>
+        <svg id="neuron" viewBox="0 0 560 300" style="display:block;width:100%;height:auto" role="img" aria-label="A pyramidal neuron with a synapse on its apical dendrite">
+          <rect width="560" height="300" fill="#f8f4e8"/>
+          <line x1="20" y1="34" x2="330" y2="34" stroke="#231f18" stroke-width="1"/><text x="20" y="27" font-family="Courier Prime,monospace" font-size="10" letter-spacing="1.5" fill="#615846">CORTICAL SURFACE (PIA)</text>
+          <g stroke="#231f18" stroke-width="2.2" fill="none" stroke-linecap="round">
+            <path d="M170 210 L170 70"/><path d="M170 100 L128 54"/><path d="M170 100 L210 52"/><path d="M170 82 L150 44"/><path d="M170 82 L192 42"/>
+            <path d="M170 150 L135 128"/><path d="M170 165 L207 142"/>
+            <path d="M154 232 L112 262"/><path d="M186 232 L230 262"/><path d="M170 238 L170 290" stroke-width="1.4"/>
+          </g>
+          <path d="M170 196 L196 240 L144 240 Z" fill="#231f18"/>
+          <g id="syn"><circle cx="212" cy="48" r="7" fill="none" stroke="#ad3526" stroke-width="2"/><path d="M252 24 L222 42" stroke="#ad3526" stroke-width="2"/><circle cx="256" cy="21" r="5" fill="#ad3526"/></g>
+          <text x="266" y="18" font-family="Courier Prime,monospace" font-size="10" fill="#ad3526" letter-spacing="1">AXON FROM ANOTHER CELL</text>
+          <g id="ions" opacity="0" stroke="#ad3526" stroke-width="1.6" fill="#ad3526" font-family="Courier Prime,monospace" font-size="11">
+            <path d="M232 64 L216 54" /><path d="M196 74 L206 58"/><text x="226" y="82" stroke="none">Na+ in: SINK (−)</text>
+          </g>
+          <g id="srcLab" opacity="0" font-family="Courier Prime,monospace" font-size="11" fill="#1b3456"><text x="238" y="250">SOURCE (+)</text><text x="238" y="263">current out</text></g>
+          <g id="dip"><line id="dipLine" x1="92" y1="210" x2="92" y2="210" stroke="#1b3456" stroke-width="5"/><path id="dipHead" d="M92 210 l-9 14 h18 z" fill="#1b3456" opacity="0"/><text x="34" y="258" font-family="Courier Prime,monospace" font-size="10" fill="#1b3456" letter-spacing="1">DIPOLE</text></g>
+          <rect x="350" y="46" width="190" height="150" fill="#fffdf4" stroke="#231f18" stroke-width="1.5"/>
+          <text x="358" y="62" font-family="Courier Prime,monospace" font-size="10" letter-spacing="1.5" fill="#615846">MEMBRANE VOLTAGE · EPSP</text>
+          <line x1="362" y1="170" x2="530" y2="170" stroke="#c9bea4"/><polyline id="epsp" fill="none" stroke="#1b3456" stroke-width="2" points=""/>
+          <text x="362" y="188" font-family="Courier Prime,monospace" font-size="9" fill="#615846">0</text><text x="500" y="188" font-family="Courier Prime,monospace" font-size="9" fill="#615846">100 ms</text>
+          <text x="350" y="222" font-family="Courier Prime,monospace" font-size="11" fill="#231f18">AT THE SCALP:</text>
+          <text id="scalpV" x="350" y="246" font-family="Libre Caslon Display,serif" font-size="26" fill="#ad3526">nothing measurable</text>
+          <text id="scalpN" x="350" y="266" font-family="Courier Prime,monospace" font-size="10" fill="#615846">one cell alone ≈ 0.00002 µV</text>
+        </svg>
+        <div class="ctl"><button class="btn red" id="fireBtn">Release glutamate</button>
+          <label class="sw"><input type="checkbox" id="crowd">with 50 000 synchronised neighbours</label></div>
+      </div>
+      <div class="app" style="margin-top:22px"><div class="lab"><b>Fig. 2b · synchrony is the signal</b><span>faint pens: single cells · heavy pen: the electrode</span></div>
+        <canvas id="syncC" height="230"></canvas>
+        <div class="ctl"><label>cells <input type="range" id="syncN" min="2" max="40" value="10"><span class="read" id="syncNr">10</span></label>
+          <label>synchrony <input type="range" id="syncS" min="0" max="100" value="15"><span class="read" id="syncSr">15%</span></label>
+          <span class="read" id="syncAmp"></span></div>
+        <div class="slip" id="syncSlip">Slide <b>synchrony</b> up. No cell gets louder, yet the electrode's pen swings wider. That is the core physics of EEG.</div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ============ III ============ -->
+<section class="station" id="s3"><div class="in">
+  <div class="shead"><span class="num">III</span><span class="caps">Station three · Section through the head</span><h2>Through the skull, and why EEG is blurry</h2></div>
+  <div class="cols flip">
+    <div>
+      <div class="app"><div class="lab"><b>Fig. 3 · a dipole under scalp, skull and fluid</b><span>drag the arrow along the cortex</span></div>
+        <canvas id="dipC" height="350" style="cursor:ew-resize;touch-action:none"></canvas>
+        <div class="ctl"><label>position <input type="range" id="dipS" min="0" max="1000" value="330" style="width:220px"></label>
+          <label class="sw"><input type="checkbox" id="noSkull">remove the skull</label></div>
+        <div class="slip" id="dipSlip"></div>
+      </div>
+    </div>
+    <div class="txt">
+      <p>Between the cortex and the electrode lie cerebrospinal fluid, skull and scalp. Current has to pass through all three. This is <strong>volume conduction</strong>, and the skull is a wretched conductor, dozens of times more resistive than the tissue around it.</p>
+      <ul>
+        <li><strong>Attenuation.</strong> Millivolts at the cortex arrive as tens of microvolts.</li>
+        <li><strong>Smearing.</strong> The skull low-pass filters across <em>space</em>. A focal source spreads over many electrodes, and every electrode hears a weighted mix of many sources. Toggle the skull off in the figure and watch the pattern sharpen.</li>
+        <li><strong>Orientation.</strong> Drag the dipole onto the crown of a gyrus: it points straight at the scalp and reads strongly. Drag it down the wall of the sulcus: it lies sideways, the scalp map weakens and flips sign across the fold. Those tangential sources are the ones MEG prefers.</li>
+      </ul>
+      <p>Going backwards, from scalp map to source, is the <strong>inverse problem</strong>. It is ill-posed: infinitely many source arrangements give the same map. Source localisation (dipole fitting, beamformers, sLORETA) only works by adding assumptions.</p>
+      <div class="nb"><span>N.B.</span><p>Every channel is a mixture. Hold on to that sentence; it is why ICA works at station VII.</p></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ============ IV ============ -->
+<section class="station" id="s4"><div class="in">
+  <div class="shead"><span class="num">IV</span><span class="caps">Station four · The recording room</span><h2>Electrodes, the 10–20 system, and the reference</h2></div>
+  <div class="app">
+    <div class="lab"><b>Fig. 4 · subject 112, seated</b><span>drag to turn the head · tap an electrode · peel to see what lies beneath</span></div>
+    <div class="room">
+      <div id="headView"><div class="hud" id="hud">cap status: <b id="capStat">lifted</b><br>seated <b id="capN">0</b> / 19</div>
+        <div class="zoom"><button class="btn sm" id="zIn" aria-label="Zoom in">+</button><button class="btn sm" id="zOut" aria-label="Zoom out">−</button></div></div>
+      <div class="side">
+        <div class="blk"><h4>Selected site</h4><div id="eName">—</div><div id="eWhere">tap any electrode on the head</div><p id="eWhat">The name is a small grammar. Letter = lobe (F, C, P, O, T, and Fp for the frontal pole). Odd = left, even = right, z = midline.</p></div>
+        <div class="blk"><h4>Cap</h4><div class="row"><button class="btn red" id="fitBtn">Fit the cap</button><button class="btn" id="liftBtn">Lift</button><label class="sw"><input type="checkbox" id="lblSw" checked>labels</label></div>
+          <p class="cap" id="capNote">Each electrode comes down until it hovers a millimetre off the skin. Conductive gel bridges that last gap. Watch for the contact.</p></div>
+        <div class="blk"><h4>Peel · skin → skull → cortex</h4><input type="range" id="peel" min="0" max="100" value="0" style="width:100%">
+          <div class="row" style="margin-top:8px"><label class="sw"><input type="checkbox" id="lobeSw">colour the lobes</label></div>
+          <div class="legend" id="lobeLegend" hidden><span><i style="background:#5b7fb0"></i>frontal</span><span><i style="background:#c0604a"></i>parietal</span><span><i style="background:#c9a23f"></i>temporal</span><span><i style="background:#5f9370"></i>occipital</span></div></div>
+        <div class="blk"><h4>Impedance check · kΩ</h4><div class="lamps" id="lamps"></div>
+          <div class="row" style="margin-top:9px"><button class="btn sm" id="gelBtn">Apply gel</button><span class="cap" style="margin:0" id="impNote">red is above 25 kΩ: too noisy to record</span></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="cols" style="margin-top:28px">
+    <div class="txt">
+      <p>An EEG channel is a <strong>difference</strong>: amplifier output = active electrode − reference electrode, with a third, the ground, to reject noise common to both. People trip over the consequence for years: there is no such thing as the voltage <em>at</em> an electrode. Every waveform depends on the reference you chose, whether linked mastoids, Cz, or the average of all channels. Re-referencing is a linear operation you can redo offline, and it changes every channel.</p>
+    </div>
+    <div class="txt">
+      <p>Electrodes are silver/silver-chloride with gel; dry ones trade signal for convenience. Before recording, the technician checks <strong>impedance</strong>, ideally under 10&nbsp;kΩ. The amplifier then digitises at 250–1000&nbsp;Hz, and by Nyquist you can only represent frequencies below half that rate. Peel the skin away above and look at what each site sits over: C3 on the hand area of motor cortex, O1 on visual cortex, Fp1 just above the eye.</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- ============ V ============ -->
+<section class="station" id="s5"><div class="in">
+  <div class="shead"><span class="num">V</span><span class="caps">Station five · The rhythm cabinet</span><h2>Five bands everyone speaks in</h2></div>
+  <div class="cols">
+    <div class="txt">
+      <p>Raw EEG looks like noise until you learn its vocabulary. Populations of neurons, paced by loops between thalamus and cortex and by local inhibitory circuits, oscillate. The frequency tracks the state of the brain so reliably that the field named the bands with Greek letters a century ago and never stopped. The borders are convention. The correlations are real.</p>
+      <p>Turn the dial through the states. The pen shows the time series; the analyser beside it shows the same thing the way your model will probably see it, as power per frequency.</p>
+      <h3>Two facts that matter for ML</h3>
+      <p>The <strong>mu rhythm</strong>, an alpha-range wave over motor cortex, drops when you move a hand or merely imagine moving it, and it drops on the opposite side of the head. That drop, <strong>event-related desynchronisation</strong>, is the signal behind motor-imagery BCIs.</p>
+      <p>Scalp <strong>gamma</strong> shares its frequencies with scalp muscle. Dramatic gamma results from scalp EEG deserve suspicion, which brings us to the next ward.</p>
+    </div>
+    <div>
+      <div class="app"><div class="lab"><b>Fig. 5 · channel O1</b><span id="stateLab">eyes closed, awake · alpha 8–13 Hz</span></div>
+        <canvas id="rhyC" height="170"></canvas>
+        <div class="knobwrap">
+          <div><svg id="knob" viewBox="-45 0 280 170" role="slider" tabindex="0" aria-label="Brain state dial" aria-valuemin="0" aria-valuemax="4" aria-valuenow="2">
+            <circle cx="95" cy="96" r="50" fill="#231f18"/><circle cx="95" cy="96" r="44" fill="#3a352b"/>
+            <g id="knobDial"><line x1="95" y1="96" x2="95" y2="56" stroke="#f8f4e8" stroke-width="4" stroke-linecap="round"/><circle cx="95" cy="96" r="7" fill="#a17f2a"/></g>
+            <g id="knobTicks"></g>
+          </svg></div>
+          <div><canvas id="psdC" height="170"></canvas></div>
+        </div>
+        <div class="ctl" id="eyesCtl"><button class="btn on" id="eyesBtn">Eyes closed</button><span class="cap" style="margin:0">Berger's 1929 observation: open the eyes and occipital alpha collapses.</span></div>
+        <div class="slip" id="rhySlip"></div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ============ VI ============ -->
+<section class="station" id="s6"><div class="in">
+  <div class="shead"><span class="num">VI</span><span class="caps">Station six · The artifact ward</span><h2>Most of your signal is not brain</h2></div>
+  <div class="cols flip">
+    <div>
+      <div class="app"><div class="lab"><b>Fig. 6 · one channel, contaminated to order</b><span id="artMode">study mode</span></div>
+        <canvas id="artC" height="210"></canvas>
+        <div class="ctl" id="artStudy">
+          <label class="sw"><input type="checkbox" data-art="blink">blink</label>
+          <label class="sw"><input type="checkbox" data-art="emg">jaw clench</label>
+          <label class="sw"><input type="checkbox" data-art="line">50 Hz mains</label>
+          <label class="sw"><input type="checkbox" data-art="drift">drift</label>
+          <label class="sw"><input type="checkbox" data-art="pop">electrode pop</label>
+        </div>
+        <div class="ctl" id="artDrill" hidden>
+          <button class="btn" data-ans="blink">Blink</button><button class="btn" data-ans="emg">Muscle</button><button class="btn" data-ans="line">Mains</button><button class="btn" data-ans="drift">Drift</button><button class="btn" data-ans="pop">Pop</button>
+          <span class="read" id="streak">streak 0 · best 0</span>
+        </div>
+        <div class="ctl"><button class="btn red" id="drillBtn">Start the technician's drill</button></div>
+        <div class="slip" id="artSlip">Switch the contaminants on one at a time and learn each signature. Then take the drill: the ward injects one at random and you name it.</div>
+      </div>
+    </div>
+    <div class="txt">
+      <p>Brain EEG is tens of microvolts. A blink is hundreds. A clenched jaw can be thousands. Before you model anything you need an eye for the impostors. Each has a signature in where it appears, what shape it takes, and what frequency it lives at.</p>
+      <ul>
+        <li><strong>Blink.</strong> A huge slow hill, biggest at Fp1 and Fp2. The eyeball is itself a dipole and the lid sweeps across it.</li>
+        <li><strong>Eye movement.</strong> A step, opposite in sign at F7 and F8.</li>
+        <li><strong>Muscle.</strong> Spiky broadband fuzz above 20&nbsp;Hz from jaw, forehead or neck. The gamma impostor.</li>
+        <li><strong>Mains.</strong> A relentless pure 50&nbsp;Hz (60 in the Americas).</li>
+        <li><strong>Drift and pop.</strong> A wandering baseline from sweat or drying gel; a sudden jump when a contact slips.</li>
+        <li><strong>Heartbeat.</strong> A spike about once a second. Pen 4 on the masthead recorder shows it.</li>
+      </ul>
+      <div class="nb"><span>N.B.</span><p>If a classifier scores suspiciously well, check whether it learned blinks, jaw tension or mains differences between conditions. This is the commonest failure in published EEG machine learning.</p></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ============ VII ============ -->
+<section class="station" id="s7"><div class="in">
+  <div class="shead"><span class="num">VII</span><span class="caps">Station seven · The cleaning bench</span><h2>Filters, and the unmixing machine</h2></div>
+  <div class="cols">
+    <div class="txt">
+      <p>Every project passes down the same bench, and this is what <code>MNE-Python</code> is for: inspect the raw data, filter, re-reference, mark and interpolate bad channels, run ICA, cut into epochs around events, reject what is still bad, baseline-correct.</p>
+      <p><strong>Filtering</strong> removes what cannot be brain: a high-pass at 0.1–1&nbsp;Hz for drift, a notch at 50 or 60 for mains, a low-pass at 40–100 for fuzz. Filters have teeth, though. They smear energy in time, and an aggressive high-pass can distort slow ERP components or invent effects that were never there. Keep the high-pass at or below about 0.3&nbsp;Hz for ERP work, filter the continuous recording rather than short epochs, and report your settings.</p>
+      <p><strong>Independent component analysis</strong> is the field's favourite trick. Because the skull mixes sources linearly, ICA can unmix the channels into statistically independent components. Blinks and mains come out as their own components. You delete them and mix the rest back.</p>
+      <div class="note">Technician's rule: judge a component by its map and its spectrum together. Frontal and slow is an eye. Everywhere and exactly 50 Hz is the wall socket. Posterior with a 10 Hz bump is the brain you came for.</div>
+    </div>
+    <div>
+      <div class="app"><div class="lab"><b>Fig. 7a · filter rack</b><span>recover the 10 Hz alpha bursts</span></div>
+        <canvas id="filtC" height="170"></canvas>
+        <div class="ctl">
+          <label class="sw"><input type="checkbox" data-f="hp">high-pass 0.5 Hz</label>
+          <label class="sw"><input type="checkbox" data-f="notch">notch 50 Hz</label>
+          <label class="sw"><input type="checkbox" data-f="lp">low-pass 40 Hz</label></div>
+        <div class="slip" id="filtSlip"></div>
+      </div>
+      <div class="app" style="margin-top:22px"><div class="lab"><b>Fig. 7b · the unmixing machine (ICA)</b><span id="icaStage">three recorded channels</span></div>
+        <canvas id="icaC" height="240"></canvas>
+        <div class="ics" id="ics" hidden>
+          <div class="ic" data-ic="0"><svg viewBox="0 0 64 70"><circle cx="32" cy="38" r="26" fill="#f8f4e8" stroke="#231f18" stroke-width="1.5"/><path d="M27 13 L32 5 L37 13" fill="none" stroke="#231f18" stroke-width="1.5"/><ellipse cx="32" cy="20" rx="17" ry="9" fill="#ad3526" opacity=".75"/></svg><b>IC 1</b>map: frontal<br>shape: slow hills<label class="sw" style="margin-top:6px"><input type="checkbox" data-rej="0">reject</label></div>
+          <div class="ic" data-ic="1"><svg viewBox="0 0 64 70"><circle cx="32" cy="38" r="26" fill="#f8f4e8" stroke="#231f18" stroke-width="1.5"/><path d="M27 13 L32 5 L37 13" fill="none" stroke="#231f18" stroke-width="1.5"/><ellipse cx="32" cy="54" rx="16" ry="9" fill="#1b3456" opacity=".75"/></svg><b>IC 2</b>map: posterior<br>shape: 10 Hz bursts<label class="sw" style="margin-top:6px"><input type="checkbox" data-rej="1">reject</label></div>
+          <div class="ic" data-ic="2"><svg viewBox="0 0 64 70"><circle cx="32" cy="38" r="26" fill="#a17f2a" opacity=".5" stroke="#231f18" stroke-width="1.5"/><path d="M27 13 L32 5 L37 13" fill="none" stroke="#231f18" stroke-width="1.5"/></svg><b>IC 3</b>map: everywhere<br>shape: pure 50 Hz<label class="sw" style="margin-top:6px"><input type="checkbox" data-rej="2">reject</label></div>
+        </div>
+        <div class="ctl"><button class="btn red" id="icaRun">Run ICA</button><button class="btn" id="icaMix" disabled>Reconstruct channels</button><button class="btn" id="icaReset">Reset</button></div>
+        <div class="slip" id="icaSlip">Three channels, each a different mixture of the same three hidden sources. Run the machine.</div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ============ VIII ============ -->
+<section class="station" id="s8"><div class="in">
+  <div class="shead"><span class="num">VIII</span><span class="caps">Station eight · The averager</span><h2>How raw voltage becomes model input</h2></div>
+  <div class="cols flip">
+    <div>
+      <div class="app"><div class="lab"><b>Fig. 8 · averaging computer, channel Pz</b><span>thin pen: newest trial · heavy pen: running average</span></div>
+        <canvas id="erpC" height="260"></canvas>
+        <div class="ctl"><button class="btn" id="erp1">+1 trial</button><button class="btn" id="erp10">+10</button><button class="btn red" id="erp100">+100</button><button class="btn" id="erp0">Clear</button>
+          <span class="read" id="erpN">N = 000</span><span class="read" id="erpSNR"></span></div>
+        <div class="slip">A response of 8&nbsp;µV is hidden in every trial under background EEG several times its size. One trial shows nothing. Keep adding.</div>
+      </div>
+    </div>
+    <div class="txt">
+      <h3 style="margin-top:0">Event-related potentials</h3>
+      <p>Present a stimulus many times, align the epochs, average. Background EEG is unrelated to the stimulus and averages toward zero. The brain's time-locked response survives. Signal-to-noise grows as <strong>√N</strong>, so a hundred trials buys a tenfold cleaner wave.</p>
+      <p>The classics: <strong>P300</strong>, a parietal positive wave 300–500&nbsp;ms after a rare, attended stimulus, the engine of P300 spellers. <strong>N170</strong> for faces. <strong>ERN</strong>, the brain noticing its own mistake within 100&nbsp;ms. <strong>SSVEP</strong>: stare at a light flickering at 12&nbsp;Hz and visual cortex hums at exactly 12&nbsp;Hz.</p>
+      <h3>Spectral and spatial features</h3>
+      <ul>
+        <li><strong>Band power</strong> by Welch's method. The workhorse of sleep staging.</li>
+        <li><strong>The 1/f slope.</strong> EEG spectra fall as 1/f. <code>specparam</code> separates true peaks from that background, and the slope itself tracks excitation and inhibition.</li>
+        <li><strong>Time–frequency maps</strong> by Morlet wavelets. An image a CNN can eat.</li>
+        <li><strong>Common spatial patterns.</strong> Channel weightings whose variance differs most between two classes.</li>
+        <li><strong>Covariance on the Riemannian manifold.</strong> Treat each trial's channel covariance as a point on a curved space and classify there. Unreasonably effective.</li>
+        <li><strong>Connectivity.</strong> Coherence and phase locking between channels, easily faked by one source leaking into two electrodes.</li>
+      </ul>
+    </div>
+  </div>
+</div></section>
+
+<!-- ============ IX ============ -->
+<section class="station" id="s9"><div class="in">
+  <div class="shead"><span class="num">IX</span><span class="caps">Station nine · The decoding office</span><h2>Machine learning on EEG, honestly</h2></div>
+  <div class="cols">
+    <div class="txt">
+      <h3 style="margin-top:0">Recipes that win</h3>
+      <ul>
+        <li><strong>Motor imagery:</strong> band-pass 8–30&nbsp;Hz, CSP, LDA. Decades old and still a brutal baseline.</li>
+        <li><strong>P300:</strong> xDAWN or downsampled epochs into regularised LDA, or a Riemannian classifier.</li>
+        <li><strong>SSVEP:</strong> canonical correlation against the flicker frequencies.</li>
+        <li><strong>Deep learning:</strong> <code>EEGNet</code> and ShallowConvNet, small CNNs whose first layers are a learned band-pass and a learned spatial filter. On most tasks they match the classical pipelines rather than crush them. Self-supervised foundation models pretrained on large unlabelled corpora (BENDR, LaBraM and their successors) are promising and not yet a settled story.</li>
+      </ul>
+      <h3>Why your ImageNet instincts fail here</h3>
+      <ul>
+        <li><strong>Signal-to-noise.</strong> The label-relevant part is a few percent of the variance.</li>
+        <li><strong>Non-stationarity.</strong> Gel dries, attention wanders. A model can die between morning and afternoon.</li>
+        <li><strong>People differ.</strong> Skull thickness and cortical folding vary, so cross-subject transfer is the central open problem.</li>
+        <li><strong>Small data.</strong> A large academic set is a few dozen subjects.</li>
+        <li><strong>Leakage.</strong> Trials seconds apart are correlated. Try the three splits on the gauge.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="app"><div class="lab"><b>Fig. 9 · reported accuracy, same model, same data</b><span>two-class task · chance is 50%</span></div>
+        <svg id="gauge" viewBox="0 0 340 232" role="img" aria-label="Accuracy gauge">
+          <path d="M40 170 A130 130 0 0 1 300 170" fill="none" stroke="#231f18" stroke-width="2"/>
+          <path d="M40 170 A130 130 0 0 1 170 40" fill="none" stroke="#c9bea4" stroke-width="12"/>
+          <path d="M170 40 A130 130 0 0 1 275.2 93.6" fill="none" stroke="#3b6849" stroke-width="12" opacity=".7"/>
+          <path d="M275.2 93.6 A130 130 0 0 1 300 170" fill="none" stroke="#ad3526" stroke-width="12" opacity=".8"/>
+          <g id="gTicks"></g>
+          <g id="needle"><line x1="170" y1="170" x2="170" y2="52" stroke="#231f18" stroke-width="3"/><circle cx="170" cy="170" r="8" fill="#231f18"/></g>
+          <text id="gVal" x="170" y="218" text-anchor="middle" font-family="Libre Caslon Display,serif" font-size="34" fill="#ad3526">50%</text>
+        </svg>
+        <div class="ctl"><button class="btn" data-split="0">Shuffle all trials</button><button class="btn" data-split="1">Hold out a session</button><button class="btn" data-split="2">Hold out a subject</button></div>
+        <div class="slip" id="splitSlip">Choose how to divide train from test. The model and the recordings do not change. Only the honesty of the split does.</div>
+      </div>
+      <div class="nb"><span>N.B.</span><p>Report cross-subject or at least cross-session accuracy, with proper splits, against a CSP or Riemannian baseline. Anything else is a demonstration, not a result.</p></div>
+    </div>
+  </div>
+  <p class="caps" style="margin:34px 0 0;color:var(--ink2)">The supply cupboard · index cards</p>
+  <div class="kit">
+    <div><b>MNE-Python</b>The pandas of EEG. Loading, filtering, ICA, epochs, ERPs, source analysis. Its tutorials are a course in themselves.</div>
+    <div><b>Braindecode · PyRiemann</b>Deep learning and Riemannian pipelines, both shaped like scikit-learn.</div>
+    <div><b>MOABB</b>A benchmark harness that runs your pipeline over dozens of public BCI datasets with honest splits.</div>
+    <div><b>Datasets</b>BCI Competition IV-2a, PhysioNet EEGMMI, Sleep-EDF, ERP CORE, and TUH EEG for clinical scale.</div>
+    <div><b>Books</b>Luck, <i>An Introduction to the ERP Technique</i>. Cohen, <i>Analyzing Neural Time Series Data</i>. Nunez &amp; Srinivasan for the physics.</div>
+    <div><b>Four weeks</b>1: MNE tutorials. 2: clean and average ERP CORE. 3: CSP + LDA on IV-2a. 4: EEGNet on the same, compared honestly.</div>
+  </div>
+</div></section>
+
+<!-- ============ X ============ -->
+<section class="station" id="s10"><div class="in">
+  <div class="shead"><span class="num">X</span><span class="caps">Station ten · Examination hall</span><h2>The technician's examination</h2></div>
+  <p style="max-width:40em;margin:0 0 20px">Ten questions. Answers are marked as you give them. Nine or more earns the laboratory's stamp.</p>
+  <div class="qgrid" id="quiz"></div>
+  <div class="cert" id="cert" hidden>
+    <span class="caps">The Berger Laboratory of Electroencephalography</span>
+    <h3 id="certTitle">Certificate of Reading</h3>
+    <div class="big" id="certScore">0 / 10</div>
+    <p id="certText"></p>
+    <p class="caps" id="certDate" style="color:var(--ink2)"></p>
+    <svg class="stamp" id="stampSvg" viewBox="0 0 120 120" hidden><circle cx="60" cy="60" r="55" fill="none" stroke="#ad3526" stroke-width="3"/><circle cx="60" cy="60" r="47" fill="none" stroke="#ad3526" stroke-width="1"/>
+      <path id="arc" d="M18 60 A42 42 0 0 1 102 60" fill="none"/><text font-family="Courier Prime,monospace" font-size="10" letter-spacing="2" fill="#ad3526"><textPath href="#arc" startOffset="6%">PASSED · SUITE No. 3</textPath></text>
+      <text x="60" y="72" text-anchor="middle" font-family="Libre Caslon Display,serif" font-size="30" fill="#ad3526">EEG</text><text x="60" y="90" text-anchor="middle" font-family="Courier Prime,monospace" font-size="8" letter-spacing="2" fill="#ad3526">READER</text></svg>
+  </div>
+  <footer>Colophon — every trace, head and reading in this laboratory is simulated for teaching; nothing here is a real recording or a real subject. Band edges, impedance limits and resolutions are the field's working conventions and vary a little between sources. The Berger Laboratory is fictional. Hans Berger and his 1924 recording are not.</footer>
+</div></section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const C={paper:'#f8f4e8',grid:'#f0dcd1',gridM:'#e2b9a9',ink:'#231f18',ink2:'#615846',red:'#ad3526',navy:'#1b3456',brass:'#a17f2a',green:'#3b6849',rule:'#c9bea4'};
+const MONO='"Courier Prime","Courier New",monospace';
+function hash(n){const s=Math.sin(n*127.1)*43758.5453;return s-Math.floor(s);}
+function noise1d(t){const i=Math.floor(t),f=t-i,u=f*f*(3-2*f);return (hash(i)*2-1)*(1-u)+(hash(i+1)*2-1)*u;}
+function pink(t){return .55*noise1d(t*3)+.3*noise1d(t*9+40)+.18*noise1d(t*25+90)+.08*noise1d(t*60+7);}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function setup(c){
+  if(!c.dataset.h)c.dataset.h=c.getAttribute('height')||'160';
+  const d=Math.min(window.devicePixelRatio||1,2),hh=parseInt(c.dataset.h)||160;
+  const w=Math.max(40,c.clientWidth||c.parentElement.clientWidth||300);
+  c.width=Math.round(w*d);c.height=Math.round(hh*d);c.style.height=hh+'px';
+  const g=c.getContext('2d');g.setTransform(d,0,0,d,0,0);return {g,w,h:hh};
+}
+function paper(g,w,h,off){
+  off=off||0;g.fillStyle=C.paper;g.fillRect(0,0,w,h);
+  g.lineWidth=1;
+  const o=((off%50)+50)%50;
+  for(let k=0;k*10-o<=w;k++){const x=Math.round(k*10-o)+.5;g.strokeStyle=(k%5===0)?C.gridM:C.grid;g.beginPath();g.moveTo(x,0);g.lineTo(x,h);g.stroke();}
+  for(let y=0,k=0;y<=h;y+=10,k++){g.strokeStyle=(k%5===0)?C.gridM:C.grid;g.beginPath();g.moveTo(0,y+.5);g.lineTo(w,y+.5);g.stroke();}
+}
+function label(g,txt,x,y,col,size){g.font=(size||10.5)+'px '+MONO;g.fillStyle=col||C.ink2;g.fillText(txt,x,y);}
+
+/* ---- scene registry: draw only what is on screen ---- */
+const scenes=[];
+const io=new IntersectionObserver(es=>es.forEach(e=>{
+  const s=scenes.find(x=>x.el===e.target);if(!s)return;s.on=e.isIntersecting;
+  if(s.on&&s.enter){s.enter();s.enter=null;}
+  if(s.on&&reduced)s.draw(12,0);
+}),{rootMargin:'120px'});
+function reg(el,draw,enter){const s={el,draw,on:false,enter:enter||null};scenes.push(s);io.observe(el);return s;}
+let clock=0,last=performance.now();
+function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;clock+=dt;for(const s of scenes)if(s.on)s.draw(clock,dt);requestAnimationFrame(loop);}
+function poke(){if(reduced)for(const s of scenes)if(s.on)s.draw(12,0);}
+const fits=[];function fit(c){const o={c,v:setup(c)};fits.push(o);return o;}
+
+/* ================= masthead recorder ================= */
+const hero=fit($('heroC'));let sp=60,calT=-99;
+function blinkAt(tt,per,ph){const p=(((tt+ph)%per)+per)%per;return p<.42?Math.pow(Math.sin(Math.PI*p/.42),2):0;}
+function ecg(tt){const p=((tt%0.92)+0.92)%0.92;return 46*Math.exp(-Math.pow((p-.2)/.012,2))-9*Math.exp(-Math.pow((p-.175)/.014,2))-12*Math.exp(-Math.pow((p-.228)/.014,2))+8*Math.exp(-Math.pow((p-.45)/.06,2));}
+const CH=[
+ ['Fp1',tt=>pink(tt*2+3)*7+blinkAt(tt,4.3,0)*62],
+ ['C3', tt=>Math.sin(2*Math.PI*10.5*tt)*5*(.5+.5*Math.sin(2*Math.PI*.11*tt))+Math.sin(2*Math.PI*21*tt)*2.4+pink(tt*2+19)*6],
+ ['O1', tt=>Math.sin(2*Math.PI*10*tt)*15*(.55+.45*Math.sin(2*Math.PI*.13*tt+1))+pink(tt*2+31)*5],
+ ['ECG',tt=>ecg(tt)+pink(tt+50)*1.5]];
+reg($('heroC'),t=>{
+  const {g,w,h}=hero.v;paper(g,w,h,t*sp);
+  const m=44,penX=w-54,rowH=(h-14)/4;
+  CH.forEach((ch,i)=>{
+    const y0=7+rowH*(i+.5),f=tt=>ch[1](tt)+((tt>calT&&tt<calT+.5)?50:0);
+    g.strokeStyle=C.navy;g.lineWidth=1.3;g.lineJoin='round';g.beginPath();
+    for(let x=m;x<=penX;x++){const y=y0-f(t-(penX-x)/sp)*.42;x===m?g.moveTo(x,y):g.lineTo(x,y);}
+    g.stroke();
+    const yp=y0-f(t)*.42;
+    g.strokeStyle=C.ink;g.lineWidth=2;g.beginPath();g.moveTo(w,y0);g.lineTo(penX+7,yp);g.stroke();
+    g.fillStyle=C.red;g.beginPath();g.moveTo(penX,yp);g.lineTo(penX+9,yp-4);g.lineTo(penX+9,yp+4);g.fill();
+    g.fillStyle=C.paper;g.fillRect(0,y0-9,m-6,18);label(g,ch[0],6,y0+4,C.ink,12);
+  });
+  label(g,'50 µV = 21 px · simulated',m+4,h-6);
+});
+document.querySelectorAll('[data-sp]').forEach(b=>b.addEventListener('click',()=>{sp=+b.dataset.sp;document.querySelectorAll('[data-sp]').forEach(x=>x.classList.toggle('on',x===b));poke();}));
+$('calBtn').addEventListener('click',()=>{calT=reduced?11.6:clock;poke();});
+
+/* ================= II neuron ================= */
+(function(){
+  const pl=$('epsp'),dl=$('dipLine'),dh=$('dipHead'),ions=$('ions'),sl=$('srcLab'),crowd=$('crowd');
+  let t0=-1;
+  function a(u){const x=u/.18;return x>0?x*Math.exp(1-x):0;}
+  function frame(u){
+    let pts='';for(let i=0;i<=100;i++){const uu=i/100;if(uu>u)break;pts+=(362+uu*168)+','+(170-a(uu)*92)+' ';}
+    pl.setAttribute('points',pts);
+    const v=a(u),len=v*120;
+    dl.setAttribute('y2',210-len);dh.setAttribute('transform','translate(0,'+(-len-14)+')');dh.setAttribute('opacity',v>.05?1:0);
+    ions.setAttribute('opacity',clamp(v*1.6,0,1));sl.setAttribute('opacity',clamp(v*1.6,0,1));
+  }
+  function setScalp(){
+    $('scalpV').textContent=crowd.checked?'about 10 µV':'nothing measurable';
+    $('scalpN').textContent=crowd.checked?'50 000 dipoles in step':'one cell alone ≈ 0.00002 µV';
+  }
+  crowd.addEventListener('change',setScalp);setScalp();
+  function run(now){if(t0<0)t0=now;const u=(now-t0)/1400;frame(Math.min(u,1));if(u<1)requestAnimationFrame(run);}
+  $('fireBtn').addEventListener('click',()=>{if(reduced){frame(1);return;}t0=-1;requestAnimationFrame(run);});
+  frame(reduced?1:0);
+})();
+
+/* ================= II synchrony ================= */
+const sy=fit($('syncC'));const syncN=$('syncN'),syncS=$('syncS');
+reg($('syncC'),t=>{
+  const {g,w,h}=sy.v;paper(g,w,h,t*40);
+  const N=+syncN.value,S=+syncS.value/100,f=8;
+  $('syncNr').textContent=N;$('syncSr').textContent=Math.round(S*100)+'%';
+  const shown=Math.min(N,12);g.lineWidth=1;g.strokeStyle=C.ink2;g.globalAlpha=.35;
+  for(let i=0;i<shown;i++){g.beginPath();
+    for(let x=0;x<=w;x+=2){const tt=t+x/110,y=h*.27-Math.sin(2*Math.PI*f*tt+hash(i+3)*6.283*(1-S))*11+(i-shown/2)*2.4;x?g.lineTo(x,y):g.moveTo(x,y);}
+    g.stroke();}
+  g.globalAlpha=1;let peak=0;g.lineWidth=2.2;g.strokeStyle=C.navy;g.beginPath();
+  for(let x=0;x<=w;x+=2){const tt=t+x/110;let s=0;for(let i=0;i<N;i++)s+=Math.sin(2*Math.PI*f*tt+hash(i+3)*6.283*(1-S));
+    s=s/Math.sqrt(N)*8.5;peak=Math.max(peak,Math.abs(s));const y=h*.72-s;x?g.lineTo(x,y):g.moveTo(x,y);}
+  g.stroke();
+  label(g,'SINGLE CELLS',8,14);label(g,'ELECTRODE = THE SUM',8,h*.72-44);
+  $('syncAmp').textContent='≈ '+peak.toFixed(0)+' µV';
+});
+syncN.addEventListener('input',poke);syncS.addEventListener('input',poke);
+
+/* ================= III dipole under the skull ================= */
+const dp=fit($('dipC'));const dipS=$('dipS'),noSkull=$('noSkull');
+function dipGeom(w,h){const Rc=Math.min(300,w*.5),Rs=Rc+62,cx=w/2,cy=92+Rs;return {Rc,Rs,cx,cy,a0:Math.PI+.52,a1:2*Math.PI-.52};}
+function cortexPt(G,s){const a=G.a0+s*(G.a1-G.a0);
+  const d=62*Math.exp(-Math.pow((s-.5)/.04,2))+9*Math.sin(s*60)*.35;
+  const r=G.Rc-d;return [G.cx+r*Math.cos(a),G.cy+r*Math.sin(a)];}
+function drawDip(){
+  const {g,w,h}=dp.v,G=dipGeom(w,h),s=+dipS.value/1000,skull=!noSkull.checked;
+  g.fillStyle=C.paper;g.fillRect(0,0,w,h);
+  function band(r,th,col){g.strokeStyle=col;g.lineWidth=th;g.beginPath();g.arc(G.cx,G.cy,r,G.a0-.06,G.a1+.06);g.stroke();}
+  band(G.Rs-7,14,'#d9a784');                                   // scalp
+  if(skull){band(G.Rs-27,26,'#e9e1c9');g.save();g.strokeStyle='#bcae8b';g.lineWidth=1;g.setLineDash([2,5]);for(let k=0;k<3;k++){g.beginPath();g.arc(G.cx,G.cy,G.Rs-19-k*8,G.a0-.06,G.a1+.06);g.stroke();}g.restore();}
+  else{band(G.Rs-27,26,'#f3efe2');}
+  band(G.Rs-46,12,'#cfe0e6');                                  // CSF
+  // cortex ribbon + white matter
+  g.beginPath();g.moveTo(-20,cortexPt(G,0)[1]);for(let i=0;i<=240;i++){const p=cortexPt(G,i/240);g.lineTo(p[0],p[1]);}
+  g.lineTo(w+20,cortexPt(G,1)[1]);g.lineTo(w+20,h+20);g.lineTo(-20,h+20);g.closePath();g.fillStyle='#f1e7d6';g.fill();
+  g.beginPath();for(let i=0;i<=240;i++){const p=cortexPt(G,i/240);i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]);}
+  g.strokeStyle='#d79c93';g.lineWidth=10;g.lineJoin='round';g.stroke();
+  // dipole
+  const P=cortexPt(G,s),P2=cortexPt(G,s+.002),P1=cortexPt(G,s-.002);
+  let tx=P2[0]-P1[0],ty=P2[1]-P1[1];const tl=Math.hypot(tx,ty);tx/=tl;ty/=tl;const nx=ty,ny=-tx;
+  const rad=[(P[0]-G.cx),(P[1]-G.cy)];const rl=Math.hypot(rad[0],rad[1]);const cosr=(nx*rad[0]+ny*rad[1])/rl;
+  // electrodes
+  const NE=11,V=[];
+  for(let i=0;i<NE;i++){const a=G.a0+(i/(NE-1))*(G.a1-G.a0),ex=G.cx+G.Rs*Math.cos(a),ey=G.cy+G.Rs*Math.sin(a);
+    const dx=ex-P[0],dy=ey-P[1],d=Math.hypot(dx,dy);V.push({a,ex,ey,v:(nx*dx+ny*dy)/Math.pow(d,3)*G.Rc*G.Rc*4.2});}
+  if(skull){for(let pass=0;pass<3;pass++){const c=V.map(o=>o.v);for(let i=0;i<NE;i++){V[i].v=.25*(c[i-1]!==undefined?c[i-1]:c[i])+.5*c[i]+.25*(c[i+1]!==undefined?c[i+1]:c[i]);}}
+    V.forEach(o=>o.v*=.55);}
+  let peak=0;V.forEach(o=>peak=Math.max(peak,Math.abs(o.v)));
+  V.forEach((o,i)=>{const ux=Math.cos(o.a),uy=Math.sin(o.a),L=clamp(o.v,-60,60);
+    g.fillStyle=C.brass;g.strokeStyle=C.ink;g.lineWidth=1.2;g.beginPath();g.arc(o.ex+ux*3,o.ey+uy*3,5,0,7);g.fill();g.stroke();
+    g.strokeStyle=o.v>=0?C.red:C.navy;g.lineWidth=7;g.beginPath();g.moveTo(o.ex+ux*12,o.ey+uy*12);g.lineTo(o.ex+ux*(12+Math.abs(L)),o.ey+uy*(12+Math.abs(L)));g.stroke();
+    if(Math.abs(o.v)>4){g.save();g.translate(o.ex+ux*(22+Math.abs(L)),o.ey+uy*(22+Math.abs(L)));label(g,(o.v>0?'+':'−')+Math.abs(o.v).toFixed(0),-8,4,o.v>=0?C.red:C.navy,10.5);g.restore();}
+  });
+  // arrow
+  g.strokeStyle=C.ink;g.fillStyle=C.ink;g.lineWidth=4;g.beginPath();g.moveTo(P[0]-nx*14,P[1]-ny*14);g.lineTo(P[0]+nx*20,P[1]+ny*20);g.stroke();
+  g.beginPath();g.moveTo(P[0]+nx*31,P[1]+ny*31);g.lineTo(P[0]+nx*18+tx*7,P[1]+ny*18+ty*7);g.lineTo(P[0]+nx*18-tx*7,P[1]+ny*18-ty*7);g.fill();
+  g.strokeStyle=C.red;g.lineWidth=1.5;g.beginPath();g.arc(P[0],P[1],26,0,7);g.stroke();
+  label(g,'SCALP',10,G.cy+ (G.Rs-4)*Math.sin(G.a0)-2,'#8a5a3a');
+  label(g,skull?'SKULL':'(SKULL REMOVED)',10,h-56,C.ink2);label(g,'FLUID',10,h-42,'#5f8792');label(g,'CORTEX',10,h-28,'#b06a60');label(g,'RED + · BLUE − · microvolts',10,h-10);
+  label(g,'SULCUS',G.cx-22,G.cy-G.Rc+92,'#b06a60');label(g,'GYRUS',G.cx-G.Rc*.42,G.cy-G.Rc*.88+34,'#b06a60');
+  const kind=Math.abs(cosr)>.8?'<b>Radial</b> — on a gyral crown, pointing at the scalp. One strong, focal patch.':Math.abs(cosr)<.42?'<b>Tangential</b> — on a sulcal wall, lying sideways. Weak at the scalp, positive on one side and negative on the other. EEG half-misses these; MEG loves them.':'<b>Oblique</b> — partway into the fold. The patch slides sideways and a negative lobe appears.';
+  $('dipSlip').innerHTML=kind+' Peak at the scalp: <b>'+peak.toFixed(0)+' µV</b>'+(skull?'.':' — skull removed: sharper and stronger, which is why recordings from the brain surface (ECoG) see so much more.');
+}
+(function(){
+  const c=$('dipC');let down=false;
+  function at(e){const r=c.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,G=dipGeom(dp.v.w,dp.v.h);let best=0,bd=1e9;
+    for(let i=0;i<=200;i++){const p=cortexPt(G,i/200),d=Math.abs(p[0]-x)*1+Math.abs(p[1]-y)*.35;if(d<bd){bd=d;best=i/200;}}
+    dipS.value=Math.round(clamp(best,.04,.96)*1000);drawDip();}
+  c.addEventListener('pointerdown',e=>{down=true;c.setPointerCapture(e.pointerId);at(e);});
+  c.addEventListener('pointermove',e=>{if(down)at(e);});
+  c.addEventListener('pointerup',()=>down=false);c.addEventListener('pointercancel',()=>down=false);
+  dipS.addEventListener('input',drawDip);noSkull.addEventListener('change',drawDip);
+})();
+
+/* ================= IV the 3D recording room ================= */
+const SITE={
+ Fp1:['Left frontal pole','Prefrontal cortex, just above the left eye. Front-row seat for blinks.'],
+ Fp2:['Right frontal pole','Prefrontal cortex above the right eye. Blink central, like Fp1.'],
+ F7:['Left inferior frontal','Lateral frontal cortex. Sideways eye movements show here, opposite in sign to F8. Language areas nearby.'],
+ F3:['Left frontal','Dorsolateral prefrontal cortex. Working memory and executive tasks.'],
+ Fz:['Frontal midline','Over the supplementary motor area. Home of frontal-midline theta and the error signal, the ERN.'],
+ F4:['Right frontal','Dorsolateral prefrontal cortex, right side.'],
+ F8:['Right inferior frontal','Mirror of F7 for eye movements.'],
+ T7:['Left temporal','Auditory cortex and language. Also catches jaw muscle.'],
+ C3:['Left central','Hand area of motor cortex. The RIGHT hand’s mu rhythm lives here. The motor-imagery electrode.'],
+ Cz:['Vertex','Top of the head, over the leg area. A common reference site. Many ERPs are large here.'],
+ C4:['Right central','Motor cortex for the LEFT hand. The other motor-imagery electrode.'],
+ T8:['Right temporal','Auditory cortex, right side. Muscle-prone.'],
+ P7:['Left posterior temporal','Ventral visual stream. The face response, N170, is strong near here.'],
+ P3:['Left parietal','Association cortex: attention and space. P300 territory.'],
+ Pz:['Parietal midline','THE P300 electrode. The oddball response peaks here.'],
+ P4:['Right parietal','Attention networks, right side.'],
+ P8:['Right posterior temporal','Mirror of P7. N170 is often larger on this side.'],
+ O1:['Left occipital','Primary visual cortex. Capital of alpha: watch it bloom when the eyes close. SSVEPs live here.'],
+ O2:['Right occipital','Primary visual cortex, right side. Alpha and SSVEP, like O1.']};
+const E3=[['Fp1',-.309,.951,0],['Fp2',.309,.951,0],['F7',-.809,.588,0],['F3',-.545,.673,.5],['Fz',0,.707,.707],['F4',.545,.673,.5],['F8',.809,.588,0],['T7',-1,0,0],['C3',-.707,0,.707],['Cz',0,0,1],['C4',.707,0,.707],['T8',1,0,0],['P7',-.809,-.588,0],['P3',-.545,-.673,.5],['Pz',0,-.707,.707],['P4',.545,-.673,.5],['P8',.809,-.588,0],['O1',-.309,-.951,0],['O2',.309,-.951,0]];
+const imp={};E3.forEach((e,i)=>imp[e[0]]=Math.round(3+hash(i*3.7+1)*38));
+let selectSite=()=>{};
+(function lamps(){
+  const box=$('lamps');
+  E3.forEach(e=>{const b=document.createElement('button');b.className='lamp';b.dataset.n=e[0];b.innerHTML='<i></i><span></span>';b.addEventListener('click',()=>selectSite(e[0]));box.appendChild(b);});
+  function paint(){box.querySelectorAll('.lamp').forEach(b=>{const v=imp[b.dataset.n];b.firstChild.style.background=v<10?C.green:v<25?'#d9a531':C.red;b.lastChild.textContent=b.dataset.n+' '+v;});}
+  paint();window.__paintLamps=paint;
+  $('gelBtn').addEventListener('click',()=>{let n=0;const iv=setInterval(()=>{let ch=false;E3.forEach((e,i)=>{const tgt=3+Math.round(hash(i+9)*5);if(imp[e[0]]>tgt){imp[e[0]]=Math.max(tgt,imp[e[0]]-Math.ceil((imp[e[0]]-tgt)/3));ch=true;}});paint();if(!ch||++n>20){clearInterval(iv);$('impNote').textContent='all sites under 10 kΩ — ready to record';}},120);});
+})();
+function showSite(n){
+  const s=SITE[n];$('eName').textContent=n;
+  const side=n.endsWith('z')?'midline (z)':(parseInt(n.slice(-1))%2?'left hemisphere (odd)':'right hemisphere (even)');
+  $('eWhere').textContent=s[0]+' · '+side+' · '+imp[n]+' kΩ';$('eWhat').textContent=s[1];
+  document.querySelectorAll('.lamp').forEach(b=>b.classList.toggle('sel',b.dataset.n===n));
+}
+(function head3D(){
+  const wrap=$('headView');
+  if(!window.THREE){wrap.insertAdjacentHTML('beforeend','<p class="cap" style="padding:60px 20px">The 3D head needs WebGL and the three.js library, which did not load here.</p>');selectSite=showSite;return;}
+  let renderer;try{renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});}catch(err){wrap.insertAdjacentHTML('beforeend','<p class="cap" style="padding:60px 20px">This browser could not start WebGL for the 3D head.</p>');selectSite=showSite;return;}
+  let W=wrap.clientWidth||600,H=clamp(Math.round(W*.78),340,560);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));renderer.setSize(W,H);wrap.insertBefore(renderer.domElement,wrap.firstChild);
+  const scene=new THREE.Scene();const cam=new THREE.PerspectiveCamera(32,W/H,.1,60);let camZ=7;cam.position.set(0,.55,camZ);cam.lookAt(0,.28,0);
+  scene.add(new THREE.HemisphereLight(0xfff3dc,0x5c4a36,.95));
+  const d1=new THREE.DirectionalLight(0xffffff,.8);d1.position.set(2.5,3,3.5);scene.add(d1);
+  const d2=new THREE.DirectionalLight(0xc9d6ff,.3);d2.position.set(-3,1,-2.5);scene.add(d2);
+  const root=new THREE.Group();scene.add(root);let yaw=-.62,pitch=.12;
+  const HR={x:.80,y:1,z:.93},V=new THREE.Vector3();
+
+  /* brain */
+  const bg=new THREE.SphereGeometry(1,128,88),bp=bg.attributes.position,dirs=new Float32Array(bp.count*3),wr=new Float32Array(bp.count);
+  for(let i=0;i<bp.count;i++){
+    V.fromBufferAttribute(bp,i).normalize();const x=V.x,y=V.y,z=V.z;dirs[i*3]=x;dirs[i*3+1]=y;dirs[i*3+2]=z;
+    const u1=x*10+2.4*Math.sin(y*7+z*5+.7),u2=y*11+2.4*Math.sin(z*8+x*6+1.9),u3=z*10+2.4*Math.sin(x*7+y*5+3.1);
+    const crease=Math.pow(Math.max(1-Math.abs(Math.sin(u1)),1-Math.abs(Math.sin(u2)),1-Math.abs(Math.sin(u3))),5);
+    let w=.022-.085*crease;
+    wr[i]=w;let r=1+w;const fiss=Math.exp(-Math.pow(x/.07,2));
+    if(y>-.4)r-=.15*fiss*Math.min(1,(y+.4)/.4);
+    let px=x*r*.74,py=y*r*.63,pz=z*r*.90;
+    if(py<-.3)py=-.3+(py+.3)*.42;
+    const tl=Math.exp(-Math.pow((Math.abs(x)-.8)/.3,2))*Math.exp(-Math.pow((y+.35)/.3,2))*Math.exp(-Math.pow((z-.2)/.5,2));
+    px*=1+.09*tl;py-=.07*tl;bp.setXYZ(i,px,py,pz);
+  }
+  const bcol=new Float32Array(bp.count*3);bg.setAttribute('color',new THREE.BufferAttribute(bcol,3));bg.computeVertexNormals();
+  const LOBE={f:[.36,.50,.69],p:[.75,.38,.29],t:[.79,.64,.25],o:[.37,.58,.44]};
+  function paintBrain(lobes){
+    for(let i=0;i<bp.count;i++){const x=dirs[i*3],y=dirs[i*3+1],z=dirs[i*3+2],sh=clamp(1+wr[i]*6.5,.5,1.14);let c=[.86,.67,.63];
+      if(lobes){c=(z<-.6)?LOBE.o:(Math.abs(x)>.5&&y<.08&&z>-.6&&z<.55)?LOBE.t:(z>.12)?LOBE.f:LOBE.p;}
+      bcol[i*3]=c[0]*sh;bcol[i*3+1]=c[1]*sh;bcol[i*3+2]=c[2]*sh;}
+    bg.attributes.color.needsUpdate=true;}
+  paintBrain(false);
+  const brain=new THREE.Group();brain.add(new THREE.Mesh(bg,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.62,metalness:0})));
+  const cg=new THREE.SphereGeometry(.36,56,40),cp=cg.attributes.position;
+  for(let i=0;i<cp.count;i++){V.fromBufferAttribute(cp,i);const k=1+.05*Math.sin(V.y*70);cp.setXYZ(i,V.x*1.25*k,V.y*.62,V.z*.85*k);}
+  cg.computeVertexNormals();const cer=new THREE.Mesh(cg,new THREE.MeshStandardMaterial({color:0xc98f86,roughness:.7}));cer.position.set(0,-.4,-.6);brain.add(cer);
+  const stem=new THREE.Mesh(new THREE.CylinderGeometry(.1,.085,.62,18),new THREE.MeshStandardMaterial({color:0xd9b3a4,roughness:.7}));stem.position.set(0,-.62,-.3);stem.rotation.x=-.25;brain.add(stem);
+  brain.scale.setScalar(.93);brain.position.set(0,.2,-.02);root.add(brain);
+
+  /* skull + skin */
+  function headGeo(){const g=new THREE.SphereGeometry(1,80,60),p=g.attributes.position;
+    for(let i=0;i<p.count;i++){V.fromBufferAttribute(p,i);let x=V.x*HR.x,y=V.y,z=V.z*HR.z;
+      if(V.y<0){const k=-V.y;x*=1-.30*k*k;y=V.y*1.2;z=z*(1-.2*k*k)+(V.z>0?.12*k*(1-k)*2:0);}
+      p.setXYZ(i,x,y,z);}g.computeVertexNormals();return g;}
+  const skinM=new THREE.MeshStandardMaterial({color:0xb5805c,roughness:.68,transparent:true,opacity:1});
+  const boneM=new THREE.MeshStandardMaterial({color:0xe9dfc6,roughness:.8,transparent:true,opacity:1});
+  const hgeo=headGeo();
+  const sg=new THREE.SphereGeometry(1,72,44,0,Math.PI*2,0,Math.PI*.64),sgp=sg.attributes.position;
+  for(let i=0;i<sgp.count;i++){V.fromBufferAttribute(sgp,i);sgp.setXYZ(i,V.x*HR.x,V.y,V.z*HR.z);}sg.computeVertexNormals();
+  boneM.side=THREE.DoubleSide;
+  const skull=new THREE.Mesh(sg,boneM);skull.scale.setScalar(.965);skull.renderOrder=1;root.add(skull);
+  const skin=new THREE.Group();const skinMesh=new THREE.Mesh(hgeo,skinM);skin.add(skinMesh);
+  const nose=new THREE.Mesh(new THREE.ConeGeometry(.085,.26,18),skinM);nose.rotation.x=Math.PI/2-.25;nose.position.set(0,-.3,.93);skin.add(nose);
+  [-1,1].forEach(s=>{const ear=new THREE.Mesh(new THREE.SphereGeometry(.14,20,16),skinM);ear.scale.set(.32,1,.62);ear.position.set(s*.79,-.2,-.02);skin.add(ear);
+    const eye=new THREE.Mesh(new THREE.SphereGeometry(.045,14,10),new THREE.MeshStandardMaterial({color:0x2a211b,roughness:.3,transparent:true}));eye.scale.set(1.5,.55,.5);eye.position.set(s*.27,-.14,.855);eye.userData.eye=1;skin.add(eye);
+    const brow=new THREE.Mesh(new THREE.BoxGeometry(.2,.022,.03),new THREE.MeshStandardMaterial({color:0x3a2c22,transparent:true}));brow.position.set(s*.27,-.04,.87);brow.rotation.z=-s*.12;brow.userData.eye=1;skin.add(brow);});
+  const neckM=new THREE.MeshStandardMaterial({color:0xb5805c,roughness:.68,transparent:true,opacity:1});
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.36,.44,.7,28),neckM);neck.position.set(0,-1.42,-.1);root.add(neck);
+  const ghost=new THREE.Mesh(hgeo,new THREE.MeshBasicMaterial({color:0x8a7a62,wireframe:true,transparent:true,opacity:0,depthWrite:false}));root.add(ghost);
+  const shoulders=new THREE.Mesh(new THREE.SphereGeometry(1,36,20,0,6.3,0,1.2),new THREE.MeshStandardMaterial({color:0xe8e2d2,roughness:.9}));shoulders.scale.set(1.35,.5,.75);shoulders.position.set(0,-1.95,-.12);root.add(shoulders);
+  skin.renderOrder=2;root.add(skin);
+
+  /* electrodes */
+  const brassM=new THREE.MeshStandardMaterial({color:0xcaa64a,metalness:.65,roughness:.32});
+  const selM=new THREE.MeshStandardMaterial({color:0xc23a28,metalness:.3,roughness:.4,emissive:0x5a0f08});
+  const wireM=new THREE.LineBasicMaterial({color:0x2c2822});
+  const HARN=new THREE.Vector3(0,1.85,-.7),up=new THREE.Vector3(0,1,0),els=[],pick=[];
+  function mkLabel(t){const c=document.createElement('canvas');c.width=128;c.height=64;const g=c.getContext('2d');g.font='bold 36px "Courier Prime","Courier New",monospace';g.textAlign='center';g.textBaseline='middle';g.lineWidth=7;g.strokeStyle='#f8f4e8';g.strokeText(t,64,34);g.fillStyle='#231f18';g.fillText(t,64,34);
+    const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthWrite:false}));sp.scale.set(.25,.125,1);return sp;}
+  E3.forEach((e,i)=>{
+    const v=new THREE.Vector3(e[1],e[3]+.16,e[2]).normalize();
+    const t=1/Math.sqrt(Math.pow(v.x/HR.x,2)+Math.pow(v.y/HR.y,2)+Math.pow(v.z/HR.z,2));
+    const S=v.clone().multiplyScalar(t),n=new THREE.Vector3(v.x/(HR.x*HR.x),v.y/(HR.y*HR.y),v.z/(HR.z*HR.z)).normalize();
+    const m=new THREE.Mesh(new THREE.CylinderGeometry(.052,.062,.03,22),brassM);m.quaternion.setFromUnitVectors(up,n);m.userData.n=e[0];
+    const hit=new THREE.Mesh(new THREE.SphereGeometry(.1,8,6),new THREE.MeshBasicMaterial({visible:false}));hit.userData.n=e[0];
+    const ring=new THREE.Mesh(new THREE.RingGeometry(.07,.085,28),new THREE.MeshBasicMaterial({color:0xad3526,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false}));ring.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),n);
+    const wire=new THREE.Line(new THREE.BufferGeometry(),wireM);const lab=mkLabel(e[0]);
+    root.add(m,hit,ring,wire,lab);pick.push(hit);
+    els.push({n:e[0],S,nrm:n,m,hit,ring,wire,lab,u:1,flash:0,order:i});
+  });
+  const jack=new THREE.Mesh(new THREE.BoxGeometry(.3,.12,.2),new THREE.MeshStandardMaterial({color:0x2c2822,roughness:.5}));jack.position.copy(HARN);root.add(jack);
+  function place(o){
+    const P=o.S.clone().addScaledVector(o.nrm,.016+o.u*.62);P.y+=o.u*.3;
+    o.m.position.copy(P);o.hit.position.copy(P);o.ring.position.copy(o.S).addScaledVector(o.nrm,.004);o.lab.position.copy(P).addScaledVector(o.nrm,.13);
+    const mid=P.clone().addScaledVector(o.nrm,.42);mid.y+=.35;
+    o.wire.geometry.setFromPoints(new THREE.QuadraticBezierCurve3(P.clone().addScaledVector(o.nrm,.02),mid,HARN).getPoints(18));
+  }
+  els.forEach(place);
+
+  /* cap choreography: approach, hover a millimetre off, contact */
+  let capDir=0,capT=0,seated=0;
+  function capStep(dt){
+    if(!capDir)return;capT+=dt;let n=0,done=true;
+    els.forEach(o=>{const lt=capT-o.order*.11;
+      if(capDir>0){
+        if(lt<=0){done=false;}
+        else if(lt<1.0){const k=lt/1.0,e=1-Math.pow(1-k,3);o.u=1-e*(1-.045);done=false;}
+        else if(lt<1.55){o.u=.045;done=false;}
+        else if(lt<1.75){o.u=.045*(1-(lt-1.55)/.2);if(o.flash===0)o.flash=1;done=false;}
+        else{o.u=0;}
+      }else{const k=clamp(lt/.7,0,1);o.u=Math.max(o.u,k*k);if(k<1)done=false;}
+      if(o.u===0)n++;place(o);});
+    seated=n;$('capN').textContent=n;
+    $('capStat').textContent=capDir>0?(done?'seated':(n?'making contact…':'descending…')):(done?'lifted':'lifting…');
+    if(done)capDir=0;
+  }
+  function fitCap(){els.forEach(o=>{o.u=1;o.flash=0;});capT=0;capDir=1;if(reduced){els.forEach(o=>{o.u=0;place(o);});capDir=0;$('capN').textContent=19;$('capStat').textContent='seated';}}
+  $('fitBtn').addEventListener('click',fitCap);
+  $('liftBtn').addEventListener('click',()=>{capT=0;capDir=-1;els.forEach(o=>o.flash=0);if(reduced){els.forEach(o=>{o.u=1;place(o);});capDir=0;$('capN').textContent=0;$('capStat').textContent='lifted';}});
+  $('lblSw').addEventListener('change',e=>els.forEach(o=>o.lab.visible=e.target.checked));
+  $('lobeSw').addEventListener('change',e=>{paintBrain(e.target.checked);$('lobeLegend').hidden=!e.target.checked;if(e.target.checked&&+$('peel').value<70){$('peel').value=100;peel();}});
+  function peel(){const p=+$('peel').value/100,so=clamp(1-p*2,0,1),bo=clamp(2-p*2,0,1);
+    skinM.opacity=so;skinM.depthWrite=so>.98;skin.visible=so>.02;
+    skin.children.forEach(ch=>{if(ch.userData.eye){ch.material.opacity=so;}});
+    boneM.opacity=bo;boneM.depthWrite=bo>.98;skull.visible=bo>.02;
+    neckM.opacity=Math.max(so,.22);neckM.depthWrite=so>.98;ghost.material.opacity=(1-so)*.07;ghost.visible=so<.98;}
+  $('peel').addEventListener('input',peel);peel();
+
+  /* selection + pointer */
+  let sel=null;
+  selectSite=function(n){sel=n;els.forEach(o=>o.m.material=(o.n===n)?selM:brassM);showSite(n);auto=false;
+    const o=els.find(x=>x.n===n);if(o){yawT=Math.atan2(-o.S.x,o.S.z)*.9;pitchT=clamp(Math.asin(clamp(o.S.y,-1,1))*.55-.05,-.3,.75);}};
+  let yawT=null,pitchT=null,auto=true,dragging=false,moved=0,lx=0,ly=0;
+  const ray=new THREE.Raycaster(),mp=new THREE.Vector2(),el=renderer.domElement;
+  function hitAt(e){const r=el.getBoundingClientRect();mp.set(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(mp,cam);const h=ray.intersectObjects(pick,false);return h.length?h[0].object.userData.n:null;}
+  el.addEventListener('pointerdown',e=>{dragging=true;moved=0;lx=e.clientX;ly=e.clientY;wrap.classList.add('drag');auto=false;yawT=pitchT=null;try{el.setPointerCapture(e.pointerId);}catch(_){}});
+  el.addEventListener('pointermove',e=>{if(dragging){const dx=e.clientX-lx,dy=e.clientY-ly;moved+=Math.abs(dx)+Math.abs(dy);yaw+=dx*.009;pitch=clamp(pitch+dy*.007,-.5,1.2);lx=e.clientX;ly=e.clientY;}
+    else{el.style.cursor=hitAt(e)?'pointer':'';}});
+  function upH(e){if(dragging&&moved<6){const n=hitAt(e);if(n)selectSite(n);}dragging=false;wrap.classList.remove('drag');}
+  el.addEventListener('pointerup',upH);el.addEventListener('pointercancel',()=>{dragging=false;wrap.classList.remove('drag');});
+  el.style.touchAction='pan-y';
+  $('zIn').addEventListener('click',()=>{camZ=clamp(camZ-.8,3.4,9);});$('zOut').addEventListener('click',()=>{camZ=clamp(camZ+.8,3.4,9);});
+
+  reg(wrap,(t,dt)=>{
+    capStep(dt||0);
+    if(auto&&!reduced)yaw+=(dt||0)*.18;
+    if(yawT!==null){let d=yawT-yaw;d=Math.atan2(Math.sin(d),Math.cos(d));yaw+=d*.09;pitch+=(pitchT-pitch)*.09;if(Math.abs(d)<.004)yawT=null;}
+    root.rotation.set(pitch,yaw,0);
+    cam.position.z+=(camZ-cam.position.z)*.12;
+    els.forEach(o=>{if(o.flash>0){o.flash=Math.max(0,o.flash-(dt||.016)*1.6);const k=1-o.flash;o.ring.material.opacity=o.flash*.9;o.ring.scale.setScalar(1+k*2.2);}else o.ring.material.opacity=0;});
+    renderer.render(scene,cam);
+  },()=>{if(!reduced)setTimeout(fitCap,500);else fitCap();});
+  window.addEventListener('resize',()=>{W=wrap.clientWidth||600;H=clamp(Math.round(W*.78),340,560);renderer.setSize(W,H);cam.aspect=W/H;cam.updateProjectionMatrix();});
+})();
+
+/* ================= V rhythm cabinet ================= */
+const ST=[
+ {k:'delta',lab:'DEEP SLEEP',band:'delta 0.5–4 Hz',f:1.6,amp:38,txt:'<b>Delta.</b> The great slow swells of deep sleep, when the whole cortex rises and falls together. The largest rhythm there is. In an awake adult it is a warning: lesion, encephalopathy or deep anaesthesia.'},
+ {k:'theta',lab:'DROWSY',band:'theta 4–8 Hz',f:6,amp:19,txt:'<b>Theta.</b> Drowsiness and the edge of sleep. Also frontal-midline theta at Fz during hard concentration and memory encoding. In rodents, hippocampal theta organises spatial memory.'},
+ {k:'alpha',lab:'EYES CLOSED',band:'alpha 8–13 Hz',f:10,amp:25,txt:'<b>Alpha.</b> Berger’s wave. Relaxed wakefulness, largest over occipital cortex with the eyes closed: visual cortex idling, or being actively held quiet. Its cousin over motor cortex, mu, runs motor-imagery BCIs.'},
+ {k:'beta',lab:'ALERT',band:'beta 13–30 Hz',f:20,amp:8.5,txt:'<b>Beta.</b> Alert engagement and motor control, with a rebound after each movement. Benzodiazepines raise it. Parkinson’s disease shows a pathological beta that deep-brain stimulation breaks up.'},
+ {k:'gamma',lab:'FOCUSED',band:'gamma 30–100 Hz',f:40,amp:4.2,txt:'<b>Gamma.</b> Fast local processing, proposed to bind features into percepts. Tiny at the scalp and exactly where muscle noise lives, so treat scalp gamma with care. Inside the skull it is a different story.'}];
+let st=2,eyes=true;
+function rhy(tt){const S=ST[st];let amp=S.amp;if(st===2&&!eyes)amp*=.2;
+  let v=Math.sin(2*Math.PI*S.f*tt)*amp*(.6+.4*Math.sin(2*Math.PI*.21*tt+1));
+  if(st===0)v+=Math.sin(2*Math.PI*.7*tt+2)*16;
+  return v+pink(tt*2)*5+(st===2&&!eyes?Math.sin(2*Math.PI*19*tt)*3:0);}
+const ry=fit($('rhyC')),ps=fit($('psdC'));
+reg($('rhyC'),t=>{const {g,w,h}=ry.v;paper(g,w,h,t*.8*120);
+  g.strokeStyle=C.navy;g.lineWidth=1.6;g.lineJoin='round';g.beginPath();
+  for(let x=0;x<=w;x++){const y=h/2-rhy(t*.8+x/120)*1.25;x?g.lineTo(x,y):g.moveTo(x,y);}g.stroke();
+  label(g,'1 s',w-150,h-8);g.strokeStyle=C.ink;g.lineWidth=1.5;g.beginPath();g.moveTo(w-126,h-11);g.lineTo(w-6,h-11);g.stroke();});
+let psdNext=0;
+function drawPSD(){
+  const {g,w,h}=ps.v;g.fillStyle=C.paper;g.fillRect(0,0,w,h);
+  const fs=128,N=256,x=new Float64Array(N);for(let i=0;i<N;i++)x[i]=rhy(clock*.8+i/fs)*(0.5-0.5*Math.cos(2*Math.PI*i/(N-1)));
+  const L=32,B=h-26,T=18,R=w-10,P=[];let mx=1e-9;
+  for(let f=1;f<=45;f++){let re=0,im=0;for(let i=0;i<N;i++){const a=2*Math.PI*f*i/fs;re+=x[i]*Math.cos(a);im-=x[i]*Math.sin(a);}const p=Math.log10(1+(re*re+im*im)/N);P.push(p);if(p>mx)mx=p;}
+  const bands=[[1,4,'δ'],[4,8,'θ'],[8,13,'α'],[13,30,'β'],[30,45,'γ']];
+  bands.forEach((b,i)=>{const x0=L+(b[0]-1)/44*(R-L),x1=L+(b[1]-1)/44*(R-L);g.fillStyle=(i===st)?'rgba(173,53,38,.13)':(i%2?'rgba(35,31,24,.04)':'rgba(35,31,24,0)');g.fillRect(x0,T,x1-x0,B-T);
+    g.font='13px '+MONO;g.fillStyle=(i===st)?C.red:C.ink2;g.fillText(b[2],(x0+x1)/2-4,T+13);});
+  g.fillStyle=C.navy;const bw=(R-L)/45;P.forEach((p,i)=>{const hh=(p/Math.max(mx,3.2))*(B-T-18);g.fillRect(L+i*bw+1,B-hh,bw-1.5,hh);});
+  g.strokeStyle=C.ink;g.lineWidth=1.5;g.beginPath();g.moveTo(L,T);g.lineTo(L,B);g.lineTo(R,B);g.stroke();
+  [1,10,20,30,40].forEach(f=>label(g,f+'',L+(f-1)/44*(R-L)-4,B+13));label(g,'Hz',R-14,B+13);
+  g.save();g.translate(12,B-6);g.rotate(-Math.PI/2);label(g,'LOG POWER',0,0);g.restore();
+  label(g,'SPECTRUM ANALYSER',L+4,11,C.ink2,9.5);
+}
+reg($('psdC'),t=>{if(reduced||t>=psdNext){psdNext=t+.4;drawPSD();}});
+(function knob(){
+  const ticks=$('knobTicks'),NS='http://www.w3.org/2000/svg',ang=i=>-110+i*55;
+  ST.forEach((S,i)=>{const a=(ang(i)-90)*Math.PI/180,x=95+Math.cos(a)*62,y=96+Math.sin(a)*62,tx=95+Math.cos(a)*78,ty=96+Math.sin(a)*78;
+    const l=document.createElementNS(NS,'line');l.setAttribute('x1',95+Math.cos(a)*53);l.setAttribute('y1',96+Math.sin(a)*53);l.setAttribute('x2',x);l.setAttribute('y2',y);l.setAttribute('stroke','#231f18');l.setAttribute('stroke-width','2');ticks.appendChild(l);
+    const t=document.createElementNS(NS,'text');t.setAttribute('x',tx);t.setAttribute('y',ty+3);t.setAttribute('text-anchor',i<2?'end':i>2?'start':'middle');if(i===2)t.setAttribute('y',ty-2);t.textContent=S.lab;t.dataset.i=i;t.addEventListener('click',e=>{e.stopPropagation();set(i);});ticks.appendChild(t);});
+  function set(i){st=clamp(i,0,4);$('knobDial').style.transform='rotate('+ang(st)+'deg)';$('knob').setAttribute('aria-valuenow',st);
+    ticks.querySelectorAll('text').forEach(t=>t.classList.toggle('act',+t.dataset.i===st));
+    $('stateLab').textContent=ST[st].lab.toLowerCase()+' · '+ST[st].band;$('rhySlip').innerHTML=ST[st].txt;$('eyesCtl').hidden=(st!==2);psdNext=0;poke();}
+  $('knob').addEventListener('click',()=>set((st+1)%5));
+  $('knob').addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowUp'){e.preventDefault();set(st+1);}if(e.key==='ArrowLeft'||e.key==='ArrowDown'){e.preventDefault();set(st-1);}});
+  $('eyesBtn').addEventListener('click',()=>{eyes=!eyes;$('eyesBtn').textContent=eyes?'Eyes closed':'Eyes open';$('eyesBtn').classList.toggle('on',eyes);psdNext=0;poke();});
+  set(2);
+})();
+
+/* ================= VI artifact ward ================= */
+const ar=fit($('artC'));const artOn={blink:false,emg:false,line:false,drift:false,pop:false};
+const ARTTXT={blink:'<b>Blink.</b> The slow hill, 100–200 µV tall. On a real cap it is ten times larger at Fp1 and Fp2 than anywhere else.',
+ emg:'<b>Muscle.</b> The fuzzy high-frequency burst. Ask the subject to relax the jaw and the pen calms at once.',
+ line:'<b>Mains.</b> A perfect 50 Hz carpet under everything. A notch filter removes it.',
+ drift:'<b>Drift.</b> The baseline wandering away: drying gel, sweat, a loose contact. A high-pass filter handles it.',
+ pop:'<b>Pop.</b> An instant jump when the contact slips. Re-gel that electrode.'};
+const ANAME={blink:'a blink',emg:'muscle',line:'mains hum',drift:'drift',pop:'an electrode pop'};
+let drill=false,cur=null,streak=0,best=0,lockT=0;
+function artSig(tt,on,force){
+  let v=Math.sin(2*Math.PI*10*tt)*6*(.5+.5*Math.sin(2*Math.PI*.17*tt))+pink(tt*2.3)*8;
+  if(on.blink)v+=blinkAt(tt,3.1,0)*72;
+  if(on.emg){const p=((tt%4.3)+4.3)%4.3;if(p>1.0&&p<2.6)v+=noise1d(tt*95)*27;}
+  if(on.line)v+=Math.sin(2*Math.PI*50*tt)*8;
+  if(on.drift)v+=Math.sin(2*Math.PI*.09*tt)*36+noise1d(tt*.5+77)*16;
+  if(on.pop){const seg=Math.floor(tt/2.3);v+=(hash(seg)>.5?1:-1)*((force||hash(seg*7)>.4)?(26+hash(seg*3)*16)*(seg%2?1:-1):0);}
+  return v;}
+reg($('artC'),t=>{const {g,w,h}=ar.v;paper(g,w,h,t*.7*110);
+  const on=drill?{[cur]:true}:artOn;
+  g.strokeStyle=C.navy;g.lineWidth=1.5;g.lineJoin='round';g.beginPath();
+  for(let x=0;x<=w;x++){const y=h/2-artSig(t*.7+x/110,on,drill)*.85;x?g.lineTo(x,y):g.moveTo(x,y);}g.stroke();
+  label(g,drill?'WHAT IS CONTAMINATING THIS CHANNEL?':'ONE CHANNEL · 50 µV / LARGE SQUARE',8,14);});
+function artSlip(){const on=Object.keys(artOn).filter(k=>artOn[k]);$('artSlip').innerHTML=on.length?on.map(k=>ARTTXT[k]).join('<br>'):'Switch the contaminants on one at a time and learn each signature. Then take the drill.';}
+document.querySelectorAll('[data-art]').forEach(cb=>cb.addEventListener('change',()=>{artOn[cb.dataset.art]=cb.checked;artSlip();poke();}));
+function nextRound(){const ks=Object.keys(ARTTXT);let n;do{n=ks[Math.floor(Math.random()*ks.length)];}while(n===cur);cur=n;lockT=0;
+  document.querySelectorAll('[data-ans]').forEach(b=>{b.classList.remove('on','red');b.disabled=false;});poke();}
+$('drillBtn').addEventListener('click',()=>{drill=!drill;$('artStudy').hidden=drill;$('artDrill').hidden=!drill;$('drillBtn').textContent=drill?'Back to study mode':'Start the technician’s drill';$('artMode').textContent=drill?'drill · name the contaminant':'study mode';
+  if(drill){streak=0;$('streak').textContent='streak 0 · best '+best;$('artSlip').innerHTML='Look at the pen. Which contaminant is it?';nextRound();}else{cur=null;artSlip();poke();}});
+document.querySelectorAll('[data-ans]').forEach(b=>b.addEventListener('click',()=>{
+  if(lockT)return;lockT=1;const ok=b.dataset.ans===cur;
+  if(ok){streak++;best=Math.max(best,streak);b.classList.add('on');$('artSlip').innerHTML='<b>Correct.</b> '+ARTTXT[cur];}
+  else{streak=0;b.classList.add('red');document.querySelector('[data-ans="'+cur+'"]').classList.add('on');$('artSlip').innerHTML='<b>No — that was '+ANAME[cur]+'.</b> '+ARTTXT[cur];}
+  $('streak').textContent='streak '+streak+' · best '+best;setTimeout(()=>{if(drill)nextRound();},ok?1300:2600);}));
+
+/* ================= VII filter rack ================= */
+const fl=fit($('filtC'));const fOn={hp:false,notch:false,lp:false};
+function filtSlip(){const n=Object.values(fOn).filter(Boolean).length;
+  $('filtSlip').innerHTML=n===3?'<b>All three in.</b> Clean alpha bursts, what a relaxed posterior channel should look like. In MNE this rack is two lines: <code>raw.filter(0.5, 40)</code> and <code>raw.notch_filter(50)</code>.':n===0?'All filters out. The 10 Hz bursts are in there, buried. Switch the modules in and watch them surface.':'Closer. '+(3-n)+' module'+(3-n>1?'s':'')+' still out.';}
+document.querySelectorAll('[data-f]').forEach(cb=>cb.addEventListener('change',()=>{fOn[cb.dataset.f]=cb.checked;filtSlip();poke();}));filtSlip();
+reg($('filtC'),t=>{const {g,w,h}=fl.v;paper(g,w,h,t*.6*110);
+  g.strokeStyle=C.navy;g.lineWidth=1.5;g.lineJoin='round';g.beginPath();
+  for(let x=0;x<=w;x++){const tt=t*.6+x/110;let v=Math.sin(2*Math.PI*10*tt)*11*(.5+.5*Math.sin(2*Math.PI*.15*tt+2));
+    if(!fOn.hp)v+=Math.sin(2*Math.PI*.12*tt)*44+noise1d(tt*.4+9)*20;
+    if(!fOn.notch)v+=Math.sin(2*Math.PI*50*tt)*(fOn.lp?2.5:9);
+    if(!fOn.lp)v+=noise1d(tt*75+31)*7;
+    const y=h/2-v*.78;x?g.lineTo(x,y):g.moveTo(x,y);}g.stroke();});
+
+/* ================= VII ICA ================= */
+const ic=fit($('icaC'));let icaStage=0,icaMixK=0,rej=[false,false,false];
+const SRC=[tt=>blinkAt(tt,2.6,.4)*30, tt=>Math.sin(2*Math.PI*10*tt)*13*(.5+.5*Math.sin(2*Math.PI*.19*tt)), tt=>Math.sin(2*Math.PI*50*tt)*7];
+const MIX=[[1.0,.30,.75],[.38,.62,.75],[.07,1.0,.75]],CHN=['Fp1','Cz','O1'];
+reg($('icaC'),(t,dt)=>{const {g,w,h}=ic.v;paper(g,w,h,t*.6*100);
+  const target=icaStage===1?1:0;icaMixK+=(target-icaMixK)*(reduced?1:Math.min(1,(dt||.016)*4));
+  const rowH=h/3;
+  for(let r=0;r<3;r++){const y0=rowH*(r+.5);
+    g.strokeStyle=(icaStage===1)?(r===1?C.navy:C.red):C.navy;g.lineWidth=1.4;g.lineJoin='round';g.beginPath();
+    for(let x=46;x<=w;x+=.4){const tt=t*.6+x/100,s=[SRC[0](tt),SRC[1](tt),SRC[2](tt)];
+      let mixed=0;for(let k=0;k<3;k++)mixed+=MIX[r][k]*s[k]*((icaStage===2&&rej[k])?0:1);
+      mixed+=pink(tt*2+r*13)*2.5;
+      const comp=s[r]*1.25;const v=mixed*(1-icaMixK)+comp*icaMixK;
+      const y=y0-v*.8;x===46?g.moveTo(x,y):g.lineTo(x,y);}
+    g.stroke();g.fillStyle=C.paper;g.fillRect(0,y0-9,42,18);label(g,icaMixK>.5?'IC '+(r+1):CHN[r],6,y0+4,C.ink,12);
+    if(r){g.strokeStyle=C.rule;g.lineWidth=1;g.beginPath();g.moveTo(0,rowH*r+.5);g.lineTo(w,rowH*r+.5);g.stroke();}}
+});
+function icaUI(){
+  $('icaStage').textContent=['three recorded channels','three independent components','channels, reconstructed'][icaStage];
+  $('ics').hidden=(icaStage===0);$('icaMix').disabled=(icaStage===0);$('icaRun').disabled=(icaStage===1);
+  document.querySelectorAll('.ic').forEach((d,i)=>d.classList.toggle('rej',rej[i]));
+  let m;
+  if(icaStage===0)m='Three channels, each a different mixture of the same three hidden sources. Run the machine.';
+  else if(icaStage===1)m='Unmixed. Each pen now writes one source. Decide which components are not brain, mark them <b>reject</b>, then reconstruct.';
+  else if(rej[1])m='<b>You deleted the brain.</b> IC 2, posterior with 10 Hz bursts, was the alpha rhythm. Run ICA again and keep it.';
+  else if(rej[0]&&rej[2])m='<b>Clean.</b> Blinks and mains are gone from all three channels at once, and the alpha is untouched. No filter could have removed the blinks without also cutting slow brain activity.';
+  else if(!rej[0]&&!rej[2])m='Nothing rejected, so nothing changed. Run ICA again and reject what is not brain.';
+  else m='Better, but '+(rej[0]?'the 50 Hz mains (IC 3) is':'the blinks (IC 1) are')+' still in the recording.';
+  $('icaSlip').innerHTML=m;poke();}
+$('icaRun').addEventListener('click',()=>{icaStage=1;icaUI();});
+$('icaMix').addEventListener('click',()=>{icaStage=2;icaUI();});
+$('icaReset').addEventListener('click',()=>{icaStage=0;rej=[false,false,false];document.querySelectorAll('[data-rej]').forEach(c=>c.checked=false);icaUI();});
+document.querySelectorAll('[data-rej]').forEach(c=>c.addEventListener('change',()=>{rej[+c.dataset.rej]=c.checked;if(icaStage===2)icaStage=1;icaUI();}));
+
+/* ================= VIII averager ================= */
+const er=fit($('erpC'));const EP=360;let erpSum=null,erpLast=null,erpCount=0,seed=1;
+function p300(i){const ms=-100+i*(800/EP);return -3*Math.exp(-Math.pow(ms-120,2)/(2*35*35))+8*Math.exp(-Math.pow(ms-350,2)/(2*80*80));}
+function addTrials(n){if(!erpSum)erpSum=new Float64Array(EP);
+  for(let k=0;k<n;k++){seed++;erpLast=new Float64Array(EP);for(let i=0;i<EP;i++){erpLast[i]=p300(i)+noise1d(i*.09+seed*31.7)*22+noise1d(i*.3+seed*57.1)*10;erpSum[i]+=erpLast[i];}erpCount++;}
+  drawERP();}
+function drawERP(){const {g,w,h}=er.v;paper(g,w,h,0);
+  const x0=46,x1=w-14,y0=h-30,ym=h*.52,sc=3.4,X=ms=>x0+(ms+100)/800*(x1-x0);
+  g.fillStyle='rgba(173,53,38,.08)';g.fillRect(X(250),8,X(500)-X(250),y0-8);label(g,'P300 WINDOW',X(250)+4,20,C.red);
+  g.strokeStyle=C.ink;g.lineWidth=1.5;g.beginPath();g.moveTo(x0,8);g.lineTo(x0,y0);g.lineTo(x1,y0);g.stroke();
+  g.setLineDash([4,4]);g.beginPath();g.moveTo(X(0),8);g.lineTo(X(0),y0);g.stroke();g.setLineDash([]);
+  [0,200,400,600].forEach(ms=>{label(g,ms+(ms===600?' ms':''),X(ms)-8,y0+15);});label(g,'STIMULUS',X(0)+4,y0-5);
+  label(g,'+10',14,ym-10*sc+4);label(g,'0 µV',6,ym+4);label(g,'−10',14,ym+10*sc+4);
+  function tr(a,col,lw,al){g.strokeStyle=col;g.lineWidth=lw;g.globalAlpha=al;g.lineJoin='round';g.beginPath();for(let i=0;i<EP;i++){const x=x0+i/(EP-1)*(x1-x0),y=clamp(ym-a[i]*sc,4,y0-2);i?g.lineTo(x,y):g.moveTo(x,y);}g.stroke();g.globalAlpha=1;}
+  if(erpLast)tr(erpLast,C.ink2,1,.5);
+  if(erpCount)tr(erpSum.map(v=>v/erpCount),C.navy,2.4,1);
+  else{tr(new Float64Array(EP).map((_,i)=>p300(i)),C.gridM,1.6,1);label(g,'the hidden response — add trials to find it',x0+10,y0-22,C.ink2);}
+  $('erpN').textContent='N = '+String(erpCount).padStart(3,'0');$('erpSNR').textContent=erpCount?'noise ÷ '+Math.sqrt(erpCount).toFixed(1):'';}
+$('erp1').addEventListener('click',()=>addTrials(1));$('erp10').addEventListener('click',()=>addTrials(10));$('erp100').addEventListener('click',()=>addTrials(100));
+$('erp0').addEventListener('click',()=>{erpSum=null;erpLast=null;erpCount=0;drawERP();});
+
+/* ================= IX gauge ================= */
+(function(){
+  const NS='http://www.w3.org/2000/svg',tk=$('gTicks');
+  for(let p=0;p<=100;p+=10){const a=Math.PI*(1-p/100),x1=170+Math.cos(a)*112,y1=170-Math.sin(a)*112,x2=170+Math.cos(a)*100,y2=170-Math.sin(a)*100;
+    const l=document.createElementNS(NS,'line');l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2);l.setAttribute('stroke','#231f18');l.setAttribute('stroke-width',p%50?1:2);tk.appendChild(l);
+    if(p%50===0||p===70||p===90){const t=document.createElementNS(NS,'text');t.setAttribute('x',170+Math.cos(a)*88);t.setAttribute('y',174-Math.sin(a)*88);t.setAttribute('text-anchor','middle');t.setAttribute('font-family','Courier Prime,monospace');t.setAttribute('font-size','10');t.setAttribute('fill','#615846');t.textContent=p;tk.appendChild(t);}}
+  const SPL=[[94,'<b>94%. Too good.</b> Trials recorded seconds apart share the same slow drifts and the same mood of the session. Shuffle them and the test set is full of near-copies of the training set. The model is recognising the session, not the brain state.'],
+             [71,'<b>71%.</b> Train on Monday’s session, test on Tuesday’s. The drop from 94 is the leakage you just removed. This is the lowest bar for an honest number.'],
+             [62,'<b>62%.</b> Test on a person the model has never seen. Modest, and real. This is the number that tells you whether a product would work on a new customer, and closing the gap to 71 is the open research problem.']];
+  function set(i){const v=SPL[i][0];$('needle').style.transform='rotate('+(v/100*180-90)+'deg)';$('gVal').textContent=v+'%';$('splitSlip').innerHTML=SPL[i][1];document.querySelectorAll('[data-split]').forEach(b=>b.classList.toggle('on',+b.dataset.split===i));}
+  $('needle').style.transform='rotate(0deg)';
+  document.querySelectorAll('[data-split]').forEach(b=>b.addEventListener('click',()=>set(+b.dataset.split)));
+})();
+
+/* ================= X examination ================= */
+const QUIZ=[
+['EEG mainly reflects…',['Action potentials (spikes)','Summed postsynaptic potentials of pyramidal neurons','Glial metabolism','Blood flow'],1,'Spikes are too brief and out of step. Synchronised dendritic potentials on parallel pyramidal cells make the measurable dipoles. Station II.'],
+['The alpha rhythm is classically largest…',['Frontally, during problem solving','Over motor cortex, during movement','Occipitally, with eyes closed','At the vertex, during sleep'],2,'Berger’s effect: posterior alpha blooms when the visual system idles behind closed eyes. Station V.'],
+['In the 10–20 system, P3 sits over the…',['Right parietal lobe','Left parietal lobe','Midline parietal','Left frontal pole'],1,'P for parietal. Odd numbers are left, even right, z the midline. Station IV.'],
+['To record activity up to 100 Hz you must sample at no less than…',['100 Hz','200 Hz','50 Hz','1000 Hz'],1,'Nyquist: more than twice the highest frequency of interest. Station IV.'],
+['A huge slow deflection, far largest at Fp1 and Fp2, is almost certainly…',['A seizure discharge','Deep-sleep delta','An eye blink','A P300'],2,'Place, shape and size together: the blink signature. Station VI.'],
+['Averaging 100 time-locked trials improves signal-to-noise by about…',['×100','×10','×2','Nothing'],1,'Noise shrinks as √N. Station VIII.'],
+['Common spatial patterns is the classic feature extractor for…',['Sleep staging','Motor-imagery BCIs','Removing mains hum','Source localisation'],1,'CSP finds channel weightings whose variance best separates the two imagery classes. Stations VIII and IX.'],
+['A dipole on the wall of a sulcus, lying sideways to the scalp, is…',['Seen best by EEG','Weak in EEG, with a sign flip across the fold','Impossible in real cortex','Stronger than a gyral one'],1,'Tangential sources project poorly to the electrodes above them. MEG prefers them. Station III.'],
+['Changing the reference electrode…',['Affects only the reference channel','Changes the waveform at every channel','Is impossible after recording','Only matters above 30 Hz'],1,'Every channel is a difference from the reference. Station IV.'],
+['A model scoring 94% when trials are shuffled into train and test is probably exploiting…',['The P300','Volume conduction','Leakage between trials recorded close together','Correct physiology — ship it'],2,'Neighbouring trials share slow states and artifacts. Split by session or by subject. Station IX.']];
+(function(){
+  const box=$('quiz');let done=0,ok=0;
+  QUIZ.forEach((q,qi)=>{const d=document.createElement('div');d.className='q';
+    const p=document.createElement('p');p.className='qq';p.innerHTML='<b>Q'+String(qi+1).padStart(2,'0')+'</b>'+q[0];d.appendChild(p);
+    q[1].forEach((o,oi)=>{const b=document.createElement('button');b.className='qopt';b.textContent=o;
+      b.addEventListener('click',()=>{if(d.classList.contains('done'))return;d.classList.add('done');done++;
+        if(oi===q[2]){b.classList.add('right');ok++;}else{b.classList.add('wrong');d.querySelectorAll('.qopt')[q[2]].classList.add('right');}
+        if(done===QUIZ.length)cert();});d.appendChild(b);});
+    const e=document.createElement('p');e.className='qexp';e.textContent=q[3];d.appendChild(e);box.appendChild(d);});
+  function cert(){const c=$('cert');c.hidden=false;$('certScore').textContent=ok+' / '+QUIZ.length;const pass=ok>=9;
+    $('certTitle').textContent=pass?'Certificate of Reading':ok>=6?'Provisional Pass':'Return to the Stations';
+    $('certText').textContent=pass?'This certifies that the bearer has walked all ten stations, can tell a blink from a brain wave, and will not trust a shuffled split. Admitted to the recording room without supervision.':ok>=6?'A sound first reading. Revisit the stations named under the questions you missed, then sit the examination again.':'The laboratory recommends a second walk through the stations before the next sitting. The apparatus will wait.';
+    $('certDate').textContent='Recording Suite No. 3 · '+new Date().toLocaleDateString(undefined,{day:'numeric',month:'long',year:'numeric'});
+    $('stampSvg').hidden=!pass;c.scrollIntoView({behavior:reduced?'auto':'smooth',block:'center'});}
+})();
+
+/* ================= tabs + resize + go ================= */
+const tabs=[...document.querySelectorAll('.tabs a')];
+const io2=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){tabs.forEach(a=>{const h=a.getAttribute('href')==='#'+e.target.id;a.classList.toggle('here',h);if(h&&a.scrollIntoView&&a.parentElement.scrollWidth>a.parentElement.clientWidth)a.parentElement.scrollLeft=a.offsetLeft-60;});}}),{rootMargin:'-25% 0px -65% 0px'});
+document.querySelectorAll('.station').forEach(s=>io2.observe(s));
+function refit(){fits.forEach(o=>o.v=setup(o.c));drawDip();drawERP();drawPSD();poke();}
+let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(refit,160);});
+icaUI();artSlip();drawDip();drawERP();drawPSD();
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{drawDip();drawERP();drawPSD();});
+if(!reduced)requestAnimationFrame(loop);else setTimeout(poke,60);
+})();
+</script>
+
+</body>
+</html>
